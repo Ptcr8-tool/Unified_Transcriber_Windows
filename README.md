@@ -4,7 +4,6 @@
 
 > **未署名のWindows版 v1.0.0** — 配布するexeにはAuthenticodeの発行元署名がありません。ブラウザー・SmartScreenで警告が出たり、Smart App Controlで実行を拒否されたりする場合があります。Windowsのセキュリティ機能を無効にすることは推奨しません。
 >
-> **依存ライブラリの未解決の検出** — `tkinterdnd2 0.6.4` に外部のマルウェア疑いの機械判定があります。対象ファイル名とハッシュは未特定で、誤検知かどうかは確定していません。署名不足による警告とは別問題です。Defenderの未検出やGitHubの出所証明は無害性の保証ではありません。使用前に[検証資料](_internal/docs/VALIDATION.md)と[警告への対応](_internal/docs/PACKAGING.md)を確認し、セキュリティ製品が具体的な脅威を検出した場合は実行を中止してください。
 
 **[セットアップexeをダウンロード](https://github.com/Ptcr8-tool/Unified_Transcriber_Windows/releases/latest)** · [画面付きの操作ガイド](_internal/docs/USAGE.md) · [リリース情報](_internal/docs/CHANGELOG.md)
 

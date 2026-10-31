@@ -2,11 +2,13 @@
 
 音声・動画の文字起こし、マイク・PC音の録音、Game Bar連携、話者名編集、結合・変換をまとめたWindows向けアプリです。録音から仕上げまで、1つの画面から進められます。
 
-> セットアップexeにWindowsの発行元署名は付いていません。検証の範囲と既知の制約は[検証資料](_internal/docs/VALIDATION.md)を参照してください。
+> **未署名のWindows版 v1.0.0** — 配布するexeにはAuthenticodeの発行元署名がありません。ブラウザー・SmartScreenで警告が出たり、Smart App Controlで実行を拒否されたりする場合があります。Windowsのセキュリティ機能を無効にすることは推奨しません。
+>
+> **依存ライブラリの未解決の検出** — `tkinterdnd2 0.6.4` に外部のマルウェア疑いの機械判定があります。対象ファイル名とハッシュは未特定で、誤検知かどうかは確定していません。署名不足による警告とは別問題です。Defenderの未検出やGitHubの出所証明は無害性の保証ではありません。使用前に[検証資料](_internal/docs/VALIDATION.md)と[警告への対応](_internal/docs/PACKAGING.md)を確認し、セキュリティ製品が具体的な脅威を検出した場合は実行を中止してください。
 
 **[セットアップexeをダウンロード](https://github.com/Ptcr8-tool/Unified_Transcriber_Windows/releases/latest)** · [画面付きの操作ガイド](_internal/docs/USAGE.md) · [リリース情報](_internal/docs/CHANGELOG.md)
 
-リリースページで利用可能なセットアップと検証結果を確認できます。非公開リポジトリのリリースには、アクセス権が必要です。
+公開リリースにある `Unified_Transcriber_Setup_v1.0.0.exe` と `SHA256SUMS.txt` を確認してください。GitHubのビルド出所証明はWindowsの発行元署名とは別物です。
 
 ## はじめる — 最初のダウンロードはexeひとつ
 

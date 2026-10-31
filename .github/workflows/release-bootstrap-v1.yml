@@ -1,0 +1,41 @@
+name: Trigger the verified v1.0.0 Windows release
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-bootstrap-v1.yml']
+
+permissions: {}
+
+jobs:
+  dispatch:
+    if: github.repository == 'Ptcr8-tool/Unified_Transcriber_Windows' && github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Bind v1.0.0 to this verified revision and dispatch the tag build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          VERSION=$(gh api "repos/$GITHUB_REPOSITORY/contents/VERSION?ref=$RELEASE_SHA" --jq '.content' | base64 --decode)
+          test "$VERSION" = "1.0.0"
+          MAIN_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          test "$MAIN_SHA" = "$RELEASE_SHA"
+          if gh release view v1.0.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Release v1.0.0 already exists; never replace a published installer'
+            exit 0
+          fi
+          if TAG_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v1.0.0" --jq '.object.sha' 2>/dev/null); then
+            test "$TAG_SHA" = "$RELEASE_SHA"
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref=refs/tags/v1.0.0 -f sha="$RELEASE_SHA" --jq '.object.sha'
+          fi
+          # A GITHUB_TOKEN tag push does not enqueue another run; explicit workflow_dispatch does.
+          gh workflow run windows-release.yml --repo "$GITHUB_REPOSITORY" --ref v1.0.0 --field publish_release=true
+          echo "Queued Windows release for verified revision $RELEASE_SHA" >> "$GITHUB_STEP_SUMMARY"

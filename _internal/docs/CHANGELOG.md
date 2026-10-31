@@ -8,4 +8,9 @@
 - ライト／システム／ダークの切り替え、通知領域での待機、ショートカットのカスタマイズを選べます。
 - 共通保存先や設定の移行、処理結果の確認、オフライン操作ガイドを利用できます。
 
-セットアップはWindowsの発行元署名が未付与です。[検証範囲](VALIDATION.md)と[第三者ソフトウェアの情報](https://github.com/Ptcr8-tool/Unified_Transcriber_Windows/blob/v1.0.0/THIRD_PARTY_NOTICES.md)も参照してください。
+### 署名・セキュリティ上の重要な注意
+
+- **Windows発行元署名なし：** 配布exeにはAuthenticode署名がありません。ダウンロード警告、SmartScreenの警告、Smart App Controlによる実行拒否が起こる場合があります。Windowsの保護機能の無効化は推奨しません。
+- **未解決の依存物の警告：** `tkinterdnd2 0.6.4` に外部の機械学習によるマルウェア疑いの判定記録があります。対象ファイルが未特定で、感染か誤検知かの検証は完了していません。Defenderの未検出やGitHubの出所証明は無害性を保証しません。具体的な脅威の検出があった場合は実行を控えてください。
+- 配布先はGitHub Releasesです。`SHA256SUMS.txt` によるハッシュ検証も可能です。
+- [検証範囲](VALIDATION.md)、[警告の区別と対応](PACKAGING.md)、[第三者ソフトウェアの情報](https://github.com/Ptcr8-tool/Unified_Transcriber_Windows/blob/v1.0.0/THIRD_PARTY_NOTICES.md)も参照してください。

@@ -675,7 +675,7 @@ class InstallerWindowTests(unittest.TestCase):
         self.assertFalse(self.window.action.instate(('disabled',)))
 
     def test_update_flag_starts_upgrade_without_rebuilding_optional_environments(self):
-        install_package(sample_package(self.folder,'2.0.0'),self.target,'2.0.0')
+        install_package(sample_package(self.folder,'0.9.0'),self.target,'0.9.0')
         settings=self.target/'Data/settings.json'
         settings.parent.mkdir()
         original=b'{"future_custom_field":true,"theme_mode":"dark"}\r\n'

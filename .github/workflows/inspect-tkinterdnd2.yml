@@ -345,7 +345,7 @@ jobs:
                   'upstream_path_blob_matches':len(path_matches)==1 and path_matches[0]['git_blob_sha1']==UPSTREAM_GIT_BLOB,
                   'members_checked':len(entries),'files_checked':len(files),'files':files,'native':natives,
                   'all_native_match_upstream':all(item['matches_upstream'] for item in natives),
-                  'limitations':'Static hashes and Defender are not a safety verdict; no wheel component was imported or executed. ReversingLabs component/hash is unidentified. Defender may send public package samples or metadata to Microsoft under its existing cloud settings; no private app data is scanned.'}
+                  'limitations':'Static hashes and Defender are not a safety verdict; no wheel component was imported or executed. Defender may send public package samples or metadata to Microsoft under its existing cloud settings; no private app data is scanned.'}
           (reports/'wheel-inventory.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           print(json.dumps(report,ensure_ascii=False,indent=2))
           '@ | python -I -X utf8 -

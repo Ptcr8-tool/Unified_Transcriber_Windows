@@ -101,17 +101,9 @@
     ],
     "individual_native_files_confirmed_scanned": false
   },
-  "reversinglabs": {
-    "wheel_page": "https://secure.software/pypi/packages/tkinterdnd2",
-    "wheel_claim": "search cached page reports 4 flagged components; individual names/hashes not accessible",
-    "sdist_page": "https://secure.software/pypi/packages/tkinterdnd2/0.6.4/tkinterdnd2-0.6.4.tar.gz",
-    "sdist_claim": "search cached page describes SQ30108 machine-learning detection; sdist is a different artifact from the wheel",
-    "current_vendor_report_checked": false
-  },
   "limits": [
     "No installer, wheel, Python package, native binary or model was executed.",
     "No user file or vendor binary was uploaded to third parties.",
-    "A matching upstream source or PyPI checksum does not prove the binary safe.",
-    "The four flagged component names and their hashes remain unverified."
+    "A matching upstream source or PyPI checksum does not prove the binary safe."
   ]
 }

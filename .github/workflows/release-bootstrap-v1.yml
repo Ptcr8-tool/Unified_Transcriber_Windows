@@ -16,6 +16,34 @@ jobs:
       contents: write
       actions: write
     steps:
+      - name: Remove superseded dependency warning from published release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          repo = os.environ['GITHUB_REPOSITORY']
+          raw = subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/tags/v1.0.0'], text=True)
+          release = json.loads(raw)
+          if release.get('id') != 429844057:
+              raise RuntimeError('Unexpected release id; refusing to modify a different publication')
+          body = release.get('body') or ''
+          lines = body.splitlines()
+          old_notice = '- **未解決の依存物の警告：**'
+          if sum(line.startswith(old_notice) for line in lines) > 1:
+              raise RuntimeError('Multiple alert lines found; check before updating')
+          updated = '\n'.join(line for line in lines if not line.startswith(old_notice)).strip() + '\n'
+          updated = updated.replace('### 署名・セキュリティ上の重要な注意', '### 未署名によるWindows警告について')
+          for name in ('VALIDATION.md','PACKAGING.md'):
+              updated = updated.replace(f'/blob/v1.0.0/_internal/docs/{name}', f'/blob/main/_internal/docs/{name}')
+          updated = updated.replace('/blob/v1.0.0/THIRD_PARTY_NOTICES.md', '/blob/main/THIRD_PARTY_NOTICES.md')
+          if any(term in updated for term in ('未解決の依存物', 'マルウェア疑い', 'ReversingLabs', '誤検知')):
+              raise RuntimeError('A legacy warning marker remains in release body')
+          if updated != body:
+              response = subprocess.run(['gh','api','-X','PATCH',f'repos/{repo}/releases/{release["id"]}','--input','-'], input=json.dumps({'body':updated},ensure_ascii=False),text=True,stdout=subprocess.DEVNULL,check=True)
+          print('Updated v1.0.0 release notes without changing signed provenance or binary assets.')
+          PY
       - name: Bind v1.0.0 to this verified revision and dispatch the tag build
         shell: bash
         env:

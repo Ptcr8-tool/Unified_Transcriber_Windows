@@ -1,0 +1,5 @@
+# Security floor for optional transitive HTTP compression packages.
+# Brotli's decoder overflow is fixed by the upstream 1.2.1 releases.
+# These constraints do not install compression packages unless required.
+Brotli>=1.2.1
+brotlicffi>=1.2.1.0

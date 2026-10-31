@@ -1,0 +1,405 @@
+name: Build Windows installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish the tested setup executable as a GitHub release
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      setup: ${{ steps.version.outputs.setup }}
+      setup_sha256: ${{ steps.seal.outputs.setup_sha256 }}
+      artifact_id: ${{ steps.outputs.outputs.artifact-id }}
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      PRIVATE_REPOSITORY: ${{ github.event.repository.private }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Keep checkout source bytes deterministic
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+          architecture: x64
+          check-latest: true
+
+      - name: Validate source version and release ref
+        id: version
+        env:
+          PUBLISH_RELEASE: ${{ inputs.publish_release || github.event_name == 'push' }}
+          PRIVATE_REPOSITORY: ${{ github.event.repository.private }}
+        run: |
+          @'
+          import ast, hashlib, json, os, re, subprocess
+          from pathlib import Path
+          version=Path('VERSION').read_text().strip()
+          assert re.fullmatch(r'\d+\.\d+\.\d+',version)
+          assert f"APP_VERSION = '{version}'" in Path('_internal/core.py').read_text()
+          assert int(os.environ['GITHUB_REPOSITORY_ID']) > 0
+          ref=os.environ['GITHUB_REF']
+          if ref.startswith('refs/tags/'):
+              assert ref == 'refs/tags/v'+version, 'Tag and app versions must match'
+          if os.environ['PUBLISH_RELEASE']=='true' and os.environ['PRIVATE_REPOSITORY']=='false':
+              assert ref=='refs/tags/v'+version, 'Public releases must be built from their version tag for provenance'
+          for path in Path('_internal').rglob('*.py'):
+              ast.parse(path.read_text(encoding='utf-8-sig'),filename=str(path),feature_version=(3,11))
+          names=subprocess.check_output(['git','ls-files','-z']).decode('utf-8').split('\0')
+          source_files={name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in sorted(names) if name}
+          source_digest=hashlib.sha256(json.dumps(source_files,sort_keys=True,separators=(',',':')).encode('utf-8')).hexdigest()
+          Path('dist').mkdir(exist_ok=True)
+          Path('dist/SOURCE_MANIFEST.json').write_text(json.dumps({'source_commit':os.environ['GITHUB_SHA'],'sha256':source_digest,'files':source_files},indent=2)+'\n',encoding='utf-8')
+          print('SOURCE_MANIFEST_SHA256='+source_digest+'; files='+str(len(source_files)))
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as out:
+              out.write('version='+version+'\n')
+              out.write('setup=Unified_Transcriber_Setup_v'+version+'.exe\n')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Compiled-code caches are deliberately private/manual/main only.
+      # Every public or tagged build compiles fresh for release provenance.
+      - name: Compute the exact private runtime cache key
+        id: runtime_inputs
+        if: github.event.repository.private == true && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        run: python _internal/tools/runtime_cache.py key --work "$env:RUNNER_TEMP\unified-build"
+
+      - name: Restore a private main runtime candidate
+        id: runtime_cache
+        if: github.event.repository.private == true && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: ${{ steps.runtime_inputs.outputs.key }}
+          path: |
+            ${{ runner.temp }}/unified-build/Runtime
+            ${{ runner.temp }}/unified-build/runtime-info.json
+            ${{ runner.temp }}/unified-build/runtime-cache-manifest.json
+
+      - name: Discard every inexact runtime cache result
+        if: github.event.repository.private == true && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (steps.runtime_cache.outputs.cache-hit != 'true' || steps.runtime_cache.outputs.cache-matched-key != steps.runtime_inputs.outputs.key)
+        run: python _internal/tools/runtime_cache.py discard --work "$env:RUNNER_TEMP\unified-build"
+
+      - name: Verify every cached byte before execution and repeat native runtime probes
+        if: steps.runtime_cache.outputs.cache-hit == 'true' && steps.runtime_cache.outputs.cache-matched-key == steps.runtime_inputs.outputs.key
+        run: python _internal/tools/runtime_cache.py verify --work "$env:RUNNER_TEMP\unified-build"
+
+      - name: Preflight signed CRT and build pinned CPython 3.11.18 with supported TLS
+        id: runtime_build
+        if: steps.runtime_cache.outputs.cache-hit != 'true' || steps.runtime_cache.outputs.cache-matched-key != steps.runtime_inputs.outputs.key
+        run: python _internal/tools/build_windows.py snapshot-runtime --work "$env:RUNNER_TEMP\unified-build"
+
+      - name: Seal only a runtime whose source/native/TLS/venv probes passed
+        if: github.event.repository.private == true && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && steps.runtime_build.outcome == 'success'
+        run: python _internal/tools/runtime_cache.py seal --work "$env:RUNNER_TEMP\unified-build"
+
+      - name: Save the verified runtime before any application or package tests
+        if: github.event.repository.private == true && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && steps.runtime_build.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: ${{ steps.runtime_inputs.outputs.key }}
+          path: |
+            ${{ runner.temp }}/unified-build/Runtime
+            ${{ runner.temp }}/unified-build/runtime-info.json
+            ${{ runner.temp }}/unified-build/runtime-cache-manifest.json
+
+      - name: Create an isolated native build and test environment
+        run: |
+          & "$env:RUNNER_TEMP\unified-build\Runtime\python.exe" -m venv "$env:RUNNER_TEMP\unified-build-env"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" -m pip --isolated install --require-hashes --only-binary=:all: --no-input -r _internal/tools/requirements-build.lock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" -m pip --isolated check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install test dependencies and run Windows regression tests
+        env:
+          PYTHONPATH: _internal
+        run: |
+          & "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" -m pip --isolated install --no-input --require-hashes --only-binary=:all: -r _internal/tools/requirements-tests-windows.lock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" -m unittest discover -s _internal/tests -v 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\windows-tests.txt"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build the single setup executable
+        run: |
+          & "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" _internal/tools/build_windows.py build --work "$env:RUNNER_TEMP\unified-build" --output dist --repository-id "$env:GITHUB_REPOSITORY_ID" --source-commit "$env:GITHUB_SHA"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Exercise the native launcher, NSIS setup and installation/repair/uninstall
+        run: '& "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" _internal/tools/windows_smoke.py --work "$env:RUNNER_TEMP\unified-build" --dist dist'
+
+
+      - name: Scan the final setup and its complete payload with Microsoft Defender
+        env:
+          SETUP_NAME: ${{ steps.version.outputs.setup }}
+        run: |
+          & _internal/tools/defender_scan.ps1 -ScanPath @("dist\$env:SETUP_NAME", "$env:RUNNER_TEMP\unified-build\payload") -ReportPath dist/DEFENDER_SCAN.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Seal the tested setup digest
+        id: seal
+        env:
+          SETUP_NAME: ${{ steps.version.outputs.setup }}
+        run: |
+          $setupPath = (Resolve-Path -LiteralPath "dist/$env:SETUP_NAME").Path
+          $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $setupPath).Hash.ToLowerInvariant()
+          $scan = Get-Content -Raw -Encoding utf8 -LiteralPath 'dist/DEFENDER_SCAN.json' | ConvertFrom-Json
+          if ($scan.status -ne 'clean' -or $scan.clean -ne $true -or $scan.artifacts_unchanged -ne $true) { throw 'A clean unchanged Defender scan is required' }
+          foreach ($property in @('artifact_inventory_before', 'artifact_inventory_after')) {
+            $matches = @($scan.$property | Where-Object { $_.path -eq $setupPath })
+            if ($matches.Count -ne 1 -or $matches[0].sha256 -cne $digest) { throw 'Setup digest differs from the Defender scan' }
+          }
+          "setup_sha256=$digest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Store build outputs and inspection reports
+        id: outputs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Unified-Transcriber-Windows-${{ steps.version.outputs.version }}
+          path: |
+            dist/*.exe
+            dist/SHA256SUMS.txt
+            dist/*.sigstore.json
+            dist/BUILD_INFO.json
+            dist/SOURCE_MANIFEST.json
+            dist/DEPENDENCIES.json
+            dist/WINDOWS_SMOKE.json
+            dist/DEFENDER_SCAN.json
+          if-no-files-found: error
+          retention-days: 14
+
+  attest:
+    needs: windows
+    if: github.event.repository.private == false && startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-2025
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    outputs:
+      artifact_id: ${{ steps.bundle.outputs.artifact-id }}
+    steps:
+      - name: Download the exact tested build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.windows.outputs.artifact_id }}
+          path: dist
+      - name: Verify tested setup digest before attestation
+        shell: pwsh
+        env:
+          SETUP_NAME: ${{ needs.windows.outputs.setup }}
+          EXPECTED_SHA256: ${{ needs.windows.outputs.setup_sha256 }}
+        run: |
+          $subject = Get-Item -Force -LiteralPath "dist/$env:SETUP_NAME"
+          if ($subject.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Attestation subject must be an ordinary file' }
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $subject.FullName).Hash.ToLowerInvariant()
+          if ($actual -ne $env:EXPECTED_SHA256) { throw 'Tested setup digest changed before attestation' }
+      - name: Attest public tagged installer builds
+        id: provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/${{ needs.windows.outputs.setup }}
+      - name: Export the offline provenance bundle
+        shell: pwsh
+        env:
+          BUNDLE_PATH: ${{ steps.provenance.outputs.bundle-path }}
+          SETUP_NAME: ${{ needs.windows.outputs.setup }}
+        run: Copy-Item -LiteralPath "$env:BUNDLE_PATH" -Destination "dist/$env:SETUP_NAME.sigstore.json"
+      - name: Store the attestation bundle
+        id: bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Unified-Transcriber-Attestation-${{ needs.windows.outputs.version }}
+          path: dist/${{ needs.windows.outputs.setup }}.sigstore.json
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: [windows, attest]
+    if: always() && !cancelled() && needs.windows.result == 'success' && (github.event.repository.private == true || needs.attest.result == 'success') && (inputs.publish_release || github.event_name == 'push')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release notes at the tested commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare the separate artifact directory
+        shell: bash
+        run: |
+          set -eu
+          test ! -e "$RUNNER_TEMP/unified-release-assets"
+          test ! -e "$RUNNER_TEMP/unified-release-metadata"
+          /usr/bin/mkdir -m 700 "$RUNNER_TEMP/unified-release-assets" "$RUNNER_TEMP/unified-release-metadata"
+      - name: Download the exact tested build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.windows.outputs.artifact_id }}
+          path: ${{ runner.temp }}/unified-release-assets
+      - name: Download public attestation bundle
+        if: github.event.repository.private == false
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.attest.outputs.artifact_id }}
+          path: ${{ runner.temp }}/unified-release-assets
+      - name: Verify and publish the tested installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.windows.outputs.version }}
+          SETUP_NAME: ${{ needs.windows.outputs.setup }}
+          EXPECTED_SHA256: ${{ needs.windows.outputs.setup_sha256 }}
+          PRIVATE_REPOSITORY: ${{ github.event.repository.private }}
+          ARTIFACT_DIR: ${{ runner.temp }}/unified-release-assets
+          METADATA_DIR: ${{ runner.temp }}/unified-release-metadata
+        run: |
+          set -euo pipefail
+          export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+          export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_ATTR_NOSYSTEM=1
+          unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT GIT_CONFIG_SYSTEM GIT_EXEC_PATH
+          export GH_REPO="$GITHUB_REPOSITORY" GH_HOST=github.com
+          export GH_CONFIG_DIR="$RUNNER_TEMP/unified-release-gh-config"
+          umask 077
+          mkdir "$GH_CONFIG_DIR"
+          export RELEASE_NOTES_FILE
+          RELEASE_NOTES_FILE=$(mktemp "$RUNNER_TEMP/unified-release-notes.XXXXXX")
+          trap 'rm -f "$RELEASE_NOTES_FILE"' EXIT
+          python3 -I - <<'PYCODE'
+          import hashlib, json, ntpath, os, re
+          from pathlib import Path
+          version=os.environ['VERSION']; name=os.environ['SETUP_NAME']
+          assert re.fullmatch(r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)',version)
+          assert name=='Unified_Transcriber_Setup_v'+version+'.exe'
+          folder=Path(os.environ['ARTIFACT_DIR']); metadata=Path(os.environ['METADATA_DIR'])
+          assert folder.is_dir() and not folder.is_symlink() and metadata.is_dir() and not metadata.is_symlink()
+          def checked_asset(item):
+              assert Path(item).name==item
+              path=folder/item
+              assert not path.is_symlink() and path.is_file(), 'Release asset must be an ordinary file'
+              return path
+          setup=checked_asset(name)
+          assert hashlib.sha256(setup.read_bytes()).hexdigest()==os.environ['EXPECTED_SHA256'], 'Tested setup digest changed'
+          def checked_source_text(name):
+              path=Path(name)
+              assert not path.is_absolute() and '..' not in path.parts
+              for index in range(1,len(path.parts)+1):
+                  assert not Path(*path.parts[:index]).is_symlink(), 'Source documentation path contains a symlink'
+              assert path.is_file() and path.stat().st_size<=2*1024*1024
+              return path.read_text(encoding='utf-8')
+          assert checked_source_text('VERSION').strip()==version
+          manifest=json.loads(checked_asset('SOURCE_MANIFEST.json').read_text(encoding='utf-8-sig'))
+          assert manifest['source_commit']==os.environ['GITHUB_SHA']
+          scan=json.loads(checked_asset('DEFENDER_SCAN.json').read_text(encoding='utf-8-sig'))
+          assert scan.get('status')=='clean' and scan.get('clean') is True and scan.get('artifacts_unchanged') is True
+          for key in ('artifact_inventory_before','artifact_inventory_after'):
+              entries=[item for item in scan.get(key,[]) if isinstance(item,dict) and ntpath.basename(item.get('path','')).casefold()==name.casefold()]
+              assert len(entries)==1 and entries[0].get('sha256')==os.environ['EXPECTED_SHA256'], 'Setup digest differs from the Defender scan'
+          assert scan['artifact_inventory_before']==scan['artifact_inventory_after']
+          smoke=json.loads(checked_asset('WINDOWS_SMOKE.json').read_text(encoding='utf-8-sig'))
+          assert smoke.get('checks'), 'Native Windows smoke report is required'
+          assets=[name]; bundle=name+'.sigstore.json'
+          if os.environ['PRIVATE_REPOSITORY']=='false':
+              checked_asset(bundle)  # A public release requires an ordinary provenance bundle
+              assets.append(bundle)
+          (metadata/'SHA256SUMS.txt').write_text(''.join(hashlib.sha256(checked_asset(item).read_bytes()).hexdigest()+'  '+item+'\n' for item in assets),encoding='ascii')
+          notes=checked_source_text('_internal/docs/CHANGELOG.md').split('\n## v',1)[0]
+          for item in ('USAGE.md','VALIDATION.md','AUDIT.md','PACKAGING.md'):
+              target='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/blob/v'+version+'/_internal/docs/'+item
+              notes=notes.replace(']('+item+')',']('+target+')').replace(']('+item+'#',']('+target+'#')
+          notes+='\n\n最初にダウンロードするのは **Unified_Transcriber_Setup_v'+version+'.exe** だけです。\n'
+          notes+='録音環境・最小AIセットはセットアップ画面で選択できます。\n'
+          notes+='\nWindows上の回帰試験、実NSIS・同梱Python・追加環境の移行／動作・修復／削除の検証に成功しました。\n'
+          notes+='生成exeと全payloadは、定義更新後のMicrosoft Defender検査で未検出でした。検査前後の全対象ファイルも一致しています。\n'
+          notes+='[この配布物のビルド・検証結果](https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']+')\n'
+          Path(os.environ['RELEASE_NOTES_FILE']).write_text(notes,encoding='utf-8')
+          PYCODE
+          tag="v$VERSION"
+          if gh release view "$tag" --json tagName >/dev/null 2>&1; then
+            echo 'This release already exists. Use a new version; published installers are not silently replaced.' >&2
+            exit 1
+          fi
+          # GitHub ignores --target when a tag already exists. Resolve annotated
+          # tags as well as lightweight tags and bind the release to the tested SHA.
+          verify_tag() {
+            python3 -I - <<'PYTAG'
+          import json, os, re, urllib.error, urllib.request
+          repo=os.environ['GITHUB_REPOSITORY']; version=os.environ['VERSION']
+          expected=os.environ['GITHUB_SHA'].lower(); tag='v'+version
+          assert re.fullmatch(r'[0-9a-f]{40}',expected), 'Unexpected source commit SHA'
+          assert re.fullmatch(r'v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)',tag)
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs): return None
+          opener=urllib.request.build_opener(NoRedirect)
+          def request(path, body=None, allow_404=False):
+              headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],
+                       'Accept':'application/vnd.github+json','User-Agent':'unified-release-guard'}
+              data=None if body is None else json.dumps(body).encode('utf-8')
+              if data is not None: headers['Content-Type']='application/json'
+              req=urllib.request.Request('https://api.github.com/repos/'+repo+path,data=data,headers=headers,method='GET' if data is None else 'POST')
+              try:
+                  with opener.open(req,timeout=30) as response:
+                      payload=response.read(1024*1024+1)
+                  assert len(payload)<=1024*1024, 'Oversize GitHub tag response'
+                  return json.loads(payload)
+              except urllib.error.HTTPError as exc:
+                  if exc.code==404 and allow_404: return None
+                  raise RuntimeError('GitHub tag request failed (HTTP '+str(exc.code)+')') from None
+          ref=request('/git/ref/tags/'+tag,allow_404=True)
+          if ref is None:
+              assert os.environ['PRIVATE_REPOSITORY']=='true' and os.environ.get('ALLOW_TAG_CREATE')=='true', 'Required release tag is missing'
+              # POST is atomic: a concurrent creator causes failure, never replacement.
+              ref=request('/git/refs',{'ref':'refs/tags/'+tag,'sha':expected})
+          obj=ref['object']
+          for _ in range(10):
+              kind=obj.get('type'); sha=obj.get('sha','').lower()
+              assert re.fullmatch(r'[0-9a-f]{40}',sha), 'Invalid tag object SHA'
+              if kind=='commit': break
+              assert kind=='tag', 'Release tag must resolve to a commit'
+              obj=request('/git/tags/'+sha)['object']
+          else: raise AssertionError('Tag nesting is excessive')
+          assert sha==expected, 'Release tag does not point to the tested commit'
+          print('Release tag resolves to the tested commit')
+          PYTAG
+          }
+          ALLOW_TAG_CREATE=true verify_tag
+          files=("$ARTIFACT_DIR/$SETUP_NAME" "$METADATA_DIR/SHA256SUMS.txt")
+          if [ "$PRIVATE_REPOSITORY" = false ]; then files+=("$ARTIFACT_DIR/$SETUP_NAME.sigstore.json"); fi
+          gh release create "$tag" "${files[@]}" --verify-tag --draft --title "$tag" --notes-file "$RELEASE_NOTES_FILE"
+          ALLOW_TAG_CREATE=false verify_tag
+          gh release edit "$tag" --verify-tag --draft=false --latest
+          gh release view "$tag" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
+      - name: Explain private build provenance availability
+        if: github.event.repository.private
+        run: |
+          echo 'Private build: the setup executable can be downloaded manually. Public automatic updates require a tagged public build with a verified provenance bundle; no checksum-only execution is allowed.' >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 780" role="img" aria-labelledby="title desc">
+  <title id="title">セットアップ項目の説明図</title>
+  <desc id="desc">インストール先と共通保存先を選び、録音環境と任意のAIセットの導入を設定します。</desc>
+  <rect width="880" height="780" rx="18" fill="#eef2f8"/>
+  <rect x="16" y="16" width="848" height="748" rx="12" fill="#ffffff"/>
+  <g font-family="Yu Gothic, Meiryo, sans-serif">
+    <text x="42" y="66" font-size="30" font-weight="700" fill="#14273f">文字起こし統合スタジオ</text>
+    <text x="42" y="94" font-size="15" fill="#617a9e">セットアップ v1.0.0 · ① 保存先と構成 → ② インストール → ③ 完了</text>
+    <text x="42" y="146" font-size="16" font-weight="700" fill="#14273f">インストール先</text>
+    <rect x="42" y="158" width="612" height="38" rx="4" fill="#fff" stroke="#aebbd0"/>
+    <text x="54" y="183" font-size="15" fill="#3a5678">C:/Sample/UnifiedTranscriber</text>
+    <rect x="666" y="158" width="169" height="38" rx="4" fill="#edf2fa"/>
+    <text x="683" y="183" font-size="15" fill="#203b5e">フォルダーを選ぶ…</text>
+    <text x="42" y="241" font-size="16" font-weight="700" fill="#14273f">ログ・録音・文字起こしなどの共通保存先</text>
+    <rect x="42" y="253" width="495" height="38" rx="4" fill="#fff" stroke="#aebbd0"/>
+    <text x="54" y="278" font-size="15" fill="#3a5678">C:/Users/Sample/Documents/UnifiedTranscriber</text>
+    <rect x="550" y="253" width="116" height="38" rx="4" fill="#edf2fa"/>
+    <text x="579" y="278" font-size="15" fill="#203b5e">選択…</text>
+    <rect x="676" y="253" width="159" height="38" rx="4" fill="#edf2fa"/>
+    <text x="688" y="278" font-size="15" fill="#203b5e">ドキュメントに戻す</text>
+    <text x="42" y="344" font-size="16" font-weight="700" fill="#14273f">導入するもの</text>
+    <g fill="#1b9d69"><rect x="42" y="362" width="38" height="22" rx="11"/><rect x="42" y="402" width="38" height="22" rx="11"/><rect x="42" y="442" width="38" height="22" rx="11"/><rect x="42" y="482" width="38" height="22" rx="11"/></g>
+    <g fill="#fff"><circle cx="68" cy="373" r="9"/><circle cx="68" cy="413" r="9"/><circle cx="68" cy="453" r="9"/><circle cx="68" cy="493" r="9"/></g>
+    <g font-size="15" fill="#203b5e"><text x="93" y="378">プログラム一覧に登録</text><text x="93" y="418">スタートメニューに追加</text><text x="93" y="458">録音環境をセットアップ</text><text x="93" y="498">推奨AIセット（② faster-whisper + Resemblyzer）</text></g>
+    <text x="42" y="547" font-size="14" fill="#617a9e">CUDAの利用見込みを確認し、CPU / GPU とモデルを選択します。</text>
+    <text x="42" y="575" font-size="14" fill="#617a9e">AIセットと録音環境は任意です。後からセットアップできます。</text>
+    <line x1="42" y1="614" x2="838" y2="614" stroke="#dbe4f1"/>
+    <text x="42" y="649" font-size="14" fill="#617a9e">保存先と必要な構成を選び、開始してください。</text>
+    <rect x="578" y="680" width="118" height="43" rx="5" fill="#edf2fa"/>
+    <text x="603" y="707" font-size="15" fill="#203b5e">キャンセル</text>
+    <rect x="708" y="680" width="130" height="43" rx="5" fill="#2763e8"/>
+    <text x="732" y="707" font-size="15" font-weight="700" fill="#fff">インストール</text>
+    <text x="42" y="742" font-size="12" fill="#7b8ea8">操作項目を示す説明図です。実際の配置は環境により異なります。</text>
+  </g>
+</svg>

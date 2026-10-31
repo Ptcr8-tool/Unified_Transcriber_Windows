@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "python": {
+    "version": "3.14.10",
+    "url": "https://www.nuget.org/api/v2/package/python/3.14.10",
+    "sha256": "f54ba67c9951c3d773ea47d2bb095150c037c399f0423a968bcda22809241784",
+    "size": 15589216,
+    "max_bytes": 16000000,
+    "publisher": "Python Software Foundation",
+    "documentation": "https://docs.python.org/3.14/using/windows.html#the-nuget-org-packages",
+    "purpose": "Application-local Python for profile 2 and standalone recording; no global Python installation"
+  },
+  "extension_source": {
+    "version": "3.14.10",
+    "url": "https://www.python.org/ftp/python/3.14.10/Python-3.14.10.tgz",
+    "sha256": "9e4996c19ae5a3df31f10c37723661f71d3455d73bd005f79df7098e5cc13192",
+    "size": 31671453,
+    "max_bytes": 32000000,
+    "purpose": "Rebuild the official _lzma extension against authenticated XZ5.8.4 instead of shipping the old binary in the NuGet package"
+  },
+  "compatibility": {
+    "checked_at": "2026-10-27",
+    "latest_python": "3.15.2",
+    "reason_for_3_14": "PyTorch, TorchAudio, ONNX Runtime and webrtcvad-wheels do not yet all publish CPython 3.15 Windows wheels",
+    "legacy_runtime": "3.11.18",
+    "legacy_reason": "Profiles other than faster-res retain their independently tested NumPy 1.26 / PyTorch 2.8 stack"
+  }
+}

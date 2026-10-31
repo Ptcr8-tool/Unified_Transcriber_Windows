@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 440" role="img" aria-labelledby="title desc">
+  <title id="title">修復とアンインストールの説明図</title>
+  <desc id="desc">同じ版のセットアップを起動すると、修復またはアンインストールを選択できます。</desc>
+  <rect width="880" height="440" rx="18" fill="#eef2f8"/>
+  <rect x="16" y="16" width="848" height="408" rx="12" fill="#fff"/>
+  <g font-family="Yu Gothic, Meiryo, sans-serif">
+    <text x="42" y="66" font-size="29" font-weight="700" fill="#14273f">文字起こし統合スタジオ</text>
+    <text x="42" y="95" font-size="15" fill="#617a9e">セットアップ v1.0.0 · 保守</text>
+    <text x="42" y="148" font-size="16" font-weight="700" fill="#14273f">インストール先</text>
+    <rect x="42" y="160" width="793" height="38" rx="4" fill="#fff" stroke="#aebbd0"/>
+    <text x="54" y="185" font-size="15" fill="#3a5678">C:/Sample/UnifiedTranscriber</text>
+    <text x="42" y="231" font-size="15" fill="#617a9e">インストール済み: v1.0.0 ／ このセットアップ: v1.0.0</text>
+    <circle cx="51" cy="268" r="8" fill="#2763e8"/><circle cx="51" cy="268" r="3" fill="#fff"/>
+    <text x="69" y="273" font-size="16" fill="#203b5e">修復</text>
+    <circle cx="143" cy="268" r="8" fill="#fff" stroke="#617a9e"/>
+    <text x="161" y="273" font-size="16" fill="#203b5e">アンインストール</text>
+    <text x="42" y="318" font-size="14" fill="#617a9e">削除時はインストール先内の設定や録音なども対象です。必要なデータは先に退避してください。</text>
+    <rect x="576" y="345" width="118" height="43" rx="5" fill="#edf2fa"/>
+    <text x="601" y="372" font-size="15" fill="#203b5e">キャンセル</text>
+    <rect x="706" y="345" width="130" height="43" rx="5" fill="#2763e8"/>
+    <text x="745" y="372" font-size="15" font-weight="700" fill="#fff">修復する</text>
+    <text x="42" y="407" font-size="12" fill="#7b8ea8">同じ版を開いたときの説明図です。実際の配置は環境により異なります。</text>
+  </g>
+</svg>

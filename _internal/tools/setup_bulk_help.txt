@@ -1,0 +1,6 @@
+GUI: start_gui.vbs -> 一括セットアップ…
+CLI: py -3.11 -X utf8 -u _internal\bulk_setup.py --preset recommended-cuda
+Other presets: recommended-cpu, all-cuda, all-cpu
+Custom: --profile faster-res:cuda --profile qwen-res:cpu --model faster:large-v3-turbo --model qwen:neosophie/Qwen3-ASR-1.7B-JA
+Options: --skip-models, --dry-run, --no-pyannote-model
+If pyannote selected, accept two gated Hugging Face agreements and supply HF_TOKEN.

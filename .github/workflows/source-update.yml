@@ -1,0 +1,280 @@
+name: Prepare source release
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha256:
+        description: SHA-256 of the reviewed _internal/source-update.zip candidate
+        type: string
+        required: true
+      expected_version:
+        description: Stable app version in the candidate (an unpublished version only)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-source-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+      EXPECTED_VERSION: ${{ inputs.expected_version }}
+      GIT_AUTHOR_NAME: Unified Transcriber
+      GIT_AUTHOR_EMAIL: release@example.invalid
+      GIT_COMMITTER_NAME: Unified Transcriber
+      GIT_COMMITTER_EMAIL: release@example.invalid
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - &restore_candidate
+        name: Validate and restore the reviewed source candidate
+        env:
+          CANDIDATE_SHA256: ${{ inputs.candidate_sha256 }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -I - <<'PY'
+          import ast, hashlib, io, json, os, re, stat, subprocess, urllib.error, urllib.request, zipfile
+          from pathlib import Path, PurePosixPath
+
+          assert os.environ['GITHUB_REF']=='refs/heads/main', 'Run source preparation from main only'
+          root=Path.cwd().resolve()
+          assert (root/'start_gui.vbs').is_file() and (root/'_internal/core.py').is_file(), 'Unexpected repository layout'
+          current=(root/'VERSION').read_text().strip()
+          assert re.fullmatch(r'\d+\.\d+\.\d+',current), 'Current release identity is missing'
+          version=os.environ['EXPECTED_VERSION']
+          assert len(version)<=40 and re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)',version), 'Expected version must be a stable semantic version'
+          assert tuple(map(int,current.split('.')))<=tuple(map(int,version.split('.'))), 'Source preparation cannot downgrade the version'
+          request=urllib.request.Request('https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/git/ref/tags/v'+version, headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, *args, **kwargs):
+                  return None
+          try:
+              with urllib.request.build_opener(NoRedirect).open(request,timeout=30):
+                  raise AssertionError('A published or tagged version cannot be replaced')
+          except urllib.error.HTTPError as error:
+              assert error.code==404, 'Could not check release tag'
+          expected=os.environ['CANDIDATE_SHA256']
+          assert re.fullmatch(r'[0-9a-f]{64}',expected), 'Explicit candidate SHA-256 required'
+          candidate=root/'_internal/source-update.zip'
+          assert candidate.is_file() and not candidate.is_symlink()
+          assert 0<candidate.stat().st_size<=32*1024*1024, 'Source candidate is unexpectedly large'
+          raw=candidate.read_bytes()
+          assert hashlib.sha256(raw).hexdigest()==expected, 'Candidate digest mismatch'
+          private_roots={'.git','.github','data','models','runtime','recordings','transcriptions','merged',
+                         'speakeredits','logs','log','.cache','.huggingface','_old','build','dist'}
+          private_names={'settings.json','hf_token.txt','stored_tokens','installation.json','portable.json'}
+          private_internal={'environments','gui_dependencies','log','logs','update-verifier'}
+          extensions={'.py','.pyw','.vbs','.bat','.md','.txt','.json','.html','.png','.svg','.ico','.lock','.toml','.yml','.yaml'}
+          devices=re.compile(r'(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\..*)?\Z',re.I)
+          token=re.compile(r'\b(?:hf_[A-Za-z0-9]{24,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,})\b')
+          files={}
+          with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+              entries=archive.infolist()
+              names=[entry.filename for entry in entries]
+              assert len(names)==len(set(names)) and len(names)<2000, 'Duplicate or excessive archive members'
+              assert sum(entry.file_size for entry in entries)<=128*1024*1024, 'Expanded source candidate is too large'
+              manifest_entry=archive.getinfo('MANIFEST.json')
+              assert manifest_entry.file_size<=1024*1024
+              manifest=json.loads(archive.read('MANIFEST.json'))
+              assert isinstance(manifest,dict) and set(names)==set(manifest)|{'MANIFEST.json'}
+              folded=set()
+              for entry in entries:
+                  name=entry.filename
+                  assert not entry.is_dir() and entry.file_size<=16*1024*1024
+                  assert not stat.S_ISLNK(entry.external_attr>>16), 'Symlink archive members are forbidden'
+                  if name=='MANIFEST.json':
+                      continue
+                  path=PurePosixPath(name)
+                  assert not path.is_absolute() and path.as_posix()==name and '\\' not in name
+                  assert all(part not in ('.','..') and 0<len(part)<=200 and part[-1] not in (' ','.')
+                             and not devices.fullmatch(part) and not any(ord(c)<32 or c in ':<>"|?*' for c in part)
+                             for part in path.parts), 'Unsafe archive path'
+                  parts=tuple(part.casefold() for part in path.parts)
+                  assert parts[0] not in private_roots, 'Candidate must contain source only'
+                  assert not (parts[0]=='_internal' and len(parts)>1 and parts[1] in private_internal)
+                  assert not any(part in private_names or part.startswith('.env')
+                      or (part.startswith('transcriber-settings') and part.endswith('.json')) for part in parts)
+                  assert path.suffix.lower() in extensions or name in ('.gitignore','VERSION'), 'Unexpected source file type'
+                  assert name.casefold() not in folded, 'Windows case-conflicting paths are forbidden'
+                  folded.add(name.casefold())
+                  digest=manifest[name]
+                  assert isinstance(digest,str) and re.fullmatch(r'[0-9a-f]{64}',digest)
+                  content=archive.read(entry)
+                  assert len(content)==entry.file_size and hashlib.sha256(content).hexdigest()==digest, name
+                  if path.suffix.lower() in {'.py','.pyw','.md','.txt','.json','.html','.bat','.vbs','.lock','.toml','.yml','.yaml'}:
+                      text=content.decode('utf-8-sig')
+                      assert not token.search(text), 'Credential-like content found in source candidate'
+                      if path.suffix.lower() in {'.py','.pyw'}:
+                          ast.parse(text,filename=name,feature_version=(3,11))
+                  files[name]=content
+          assert files['VERSION']==(version+'\n').encode('ascii')
+          assert f"APP_VERSION = '{version}'" in files['_internal/core.py'].decode('utf-8-sig')
+          for required in ('README.md','start_gui.pyw','start_gui.vbs','_internal/unified_gui.py',
+                           '_internal/installation.py','_internal/installer_ui.py','_internal/app_updates.py',
+                           '_internal/tools/build_windows.py','_internal/docs/GUIDE.html'):
+              assert required in files, 'Incomplete app source candidate: '+required
+          workflow_hashes={str(path.relative_to(root)):hashlib.sha256(path.read_bytes()).hexdigest()
+                           for path in (root/'.github').rglob('*') if path.is_file()}
+          tracked=subprocess.check_output(['git','ls-files','-z']).decode().rstrip('\0').split('\0')
+          assert not subprocess.check_output(['git','status','--porcelain']).strip(), 'Checkout must start clean'
+          for name in tracked:
+              if name.startswith('.github/'):
+                  continue
+              path=root/name
+              if path.is_file() or path.is_symlink():
+                  path.unlink()
+          for name,content in files.items():
+              path=root/name
+              assert not path.exists(), 'Unexpected unmanaged file would be overwritten: '+name
+              path.parent.mkdir(parents=True,exist_ok=True)
+              path.write_bytes(content)
+          after={str(path.relative_to(root)):hashlib.sha256(path.read_bytes()).hexdigest()
+                 for path in (root/'.github').rglob('*') if path.is_file()}
+          assert after==workflow_hashes, 'Reviewed workflows must remain byte-for-byte unchanged'
+          assert not candidate.exists(), 'Source import ZIP must not enter the release tree'
+          # Anchor both later comparisons to the reviewed candidate and the original
+          # workflows, not to files that candidate tests may modify.
+          expected_files={name:hashlib.sha256(content).hexdigest() for name,content in files.items()}
+          assert not (set(expected_files) & set(workflow_hashes))
+          expected_files.update(workflow_hashes)
+          Path(os.environ['RUNNER_TEMP'],'source-verified-files.json').write_text(
+              json.dumps(expected_files,sort_keys=True),encoding='utf-8')
+          print(f'Validated {len(files)} reviewed source files for v{version}')
+          PY
+
+      - name: Install regression test dependencies
+        run: |
+          test -f /etc/apt/sources.list.d/ubuntu.sources
+          sudo timeout --kill-after=10s 120s apt-get -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=- -o Acquire::ForceIPv4=true -o Acquire::Retries=1 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 --error-on=any update -qq
+          sudo timeout --kill-after=10s 240s apt-get -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=- -o Acquire::ForceIPv4=true -o Acquire::Retries=1 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y -qq --no-install-recommends python3-tk python3-numpy python3-scipy python3-sklearn python3-pil xvfb xauth ffmpeg
+
+      - name: Run the complete source and GUI regression suite
+        run: |
+          set -euo pipefail
+          PYTHONPATH=_internal xvfb-run -a /usr/bin/python3 -m unittest discover -s _internal/tests -v 2>&1 | tee "$RUNNER_TEMP/source-tests.txt"
+          python3 -I - <<'PY'
+          import os, re
+          from pathlib import Path
+          text = Path(os.environ['RUNNER_TEMP'], 'source-tests.txt').read_text()
+          expected = {
+              "test_short_and_long_installation_paths_have_one_canonical_identity (test_installation.InstallerTests.test_short_and_long_installation_paths_have_one_canonical_identity) ... skipped 'Windows 8.3 path identity'",
+              "test_relaunch_self_test_accepts_the_same_installation_through_a_short_path (test_installer_ui.InstallerPreferenceTests.test_relaunch_self_test_accepts_the_same_installation_through_a_short_path) ... skipped 'Windows 8.3 path identity'",
+              "test_native_windows_directory_handle_without_delete_share_retries_then_installs (test_secure_media.SecureMediaTest.test_native_windows_directory_handle_without_delete_share_retries_then_installs) ... skipped 'Requires native Windows sharing semantics.'",
+          }
+          skipped = [line for line in text.splitlines() if '... skipped ' in line]
+          assert len(skipped) == len(expected) and set(skipped) == expected, 'Unexpected source test skip'
+          assert re.search(r'^OK \(skipped=3\)$', text, re.M), 'Source suite did not finish successfully'
+          assert not re.search(r'^(FAILED|ERROR)', text, re.M), 'Source suite reported a failure'
+          PY
+
+      - name: Check reviewed files did not change while tests ran
+        run: |
+          python3 -I - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root=Path.cwd().resolve()
+          expected=json.loads(Path(os.environ['RUNNER_TEMP'],'source-verified-files.json').read_text(encoding='utf-8'))
+          assert isinstance(expected,dict) and expected, 'Reviewed file manifest missing'
+          found={}
+          for path in root.rglob('*'):
+              rel=path.relative_to(root)
+              if rel.parts[0]=='.git': continue
+              assert not path.is_symlink(), 'Unexpected source symlink after tests: '+str(rel)
+              if path.is_file(): found[rel.as_posix()]=hashlib.sha256(path.read_bytes()).hexdigest()
+          assert found==expected, 'Source files changed during the regression suite'
+          print(f'All {len(found)} reviewed files remain unchanged after tests')
+          PY
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+      EXPECTED_VERSION: ${{ inputs.expected_version }}
+      GIT_AUTHOR_NAME: Unified Transcriber
+      GIT_AUTHOR_EMAIL: release@example.invalid
+      GIT_COMMITTER_NAME: Unified Transcriber
+      GIT_COMMITTER_EMAIL: release@example.invalid
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      # Reconstruct from the same SHA-256 checked archive on a fresh runner.
+      # No candidate code is executed in this privileged job.
+      - *restore_candidate
+
+      - name: Commit the tested source without publishing an untested installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+          export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_ATTR_NOSYSTEM=1
+          unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT GIT_CONFIG_SYSTEM GIT_EXEC_PATH
+          git_safe() { command git -c core.hooksPath=/dev/null -c core.attributesFile=/dev/null -c core.fsmonitor=false "$@"; }
+          if git_safe config --local --get-regexp '^filter[.]' >/dev/null; then
+            echo 'Local Git filters are not allowed in the publish job.' >&2; exit 1
+          else
+            status=$?; if [ "$status" -ne 1 ]; then exit "$status"; fi
+          fi
+          askpass=$(mktemp "$RUNNER_TEMP/unified-git-askpass.XXXXXX")
+          cat > "$askpass" <<'ASKPASS'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *Password*) printf '%s\n' "$GH_TOKEN" ;;
+            *) exit 1 ;;
+          esac
+          ASKPASS
+          chmod 700 "$askpass"
+          export GIT_ASKPASS="$askpass" GIT_TERMINAL_PROMPT=0
+          trap 'rm -f "$askpass"' EXIT
+          test "$(cat VERSION)" = "$EXPECTED_VERSION"
+          test "$(git_safe rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git_safe ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          test -z "$(git_safe ls-remote origin "refs/tags/v$EXPECTED_VERSION")"
+          test -z "$(git_safe diff --name-only HEAD -- .github)"
+          test ! -f _internal/source-update.zip
+          git_safe add -A
+          # .gitignore must not silently omit reviewed files from the staged tree.
+          python3 -I - <<'PY'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          expected=json.loads(Path(os.environ['RUNNER_TEMP'],'source-verified-files.json').read_text(encoding='utf-8'))
+          staged={}
+          for entry in subprocess.check_output(['git','ls-files','--stage','-z']).split(b'\0'):
+              if not entry: continue
+              header,name=entry.split(b'\t',1)
+              mode,oid,stage=header.decode('ascii').split()
+              assert stage=='0' and mode in ('100644','100755'), 'Unexpected staged entry'
+              name=name.decode('utf-8')
+              assert name not in staged
+              data=subprocess.check_output(['git','cat-file','blob',oid])
+              staged[name]=hashlib.sha256(data).hexdigest()
+          assert staged==expected, 'Staged paths or blobs differ from the reviewed source candidate'
+          print(f'Verified {len(staged)} staged paths and blob hashes')
+          PY
+          release_tree=$(git_safe write-tree)
+          release_commit=$(printf 'Prepare v%s: installer, secure updates and illustrated guide\n' "$EXPECTED_VERSION" | git_safe commit-tree "$release_tree" -p "$GITHUB_SHA")
+          git_safe push --force-with-lease="refs/heads/main:$GITHUB_SHA" origin "$release_commit:refs/heads/main"
+          printf 'Prepared unpublished source v%s at `%s` with its parent history preserved.\n' "$EXPECTED_VERSION" "$release_commit" >> "$GITHUB_STEP_SUMMARY"
+          printf 'No version tag was created. Build and test the Windows installer before publishing v%s.\n' "$EXPECTED_VERSION" >> "$GITHUB_STEP_SUMMARY"
+

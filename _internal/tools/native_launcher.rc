@@ -1,0 +1,32 @@
+#include <windows.h>
+#include "native_launcher_version.h"
+
+1 ICON "native_launcher.ico"
+1 VERSIONINFO
+ FILEVERSION UNIFIED_VERSION_TUPLE
+ PRODUCTVERSION UNIFIED_VERSION_TUPLE
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904b0"
+    BEGIN
+      VALUE "CompanyName", "Unified Transcriber\0"
+      VALUE "FileDescription", "文字起こし統合スタジオ\0"
+      VALUE "FileVersion", UNIFIED_VERSION_STRING "\0"
+      VALUE "InternalName", "UnifiedTranscriber\0"
+      VALUE "OriginalFilename", "UnifiedTranscriber.exe\0"
+      VALUE "ProductName", "文字起こし統合スタジオ\0"
+      VALUE "ProductVersion", UNIFIED_VERSION_STRING "\0"
+      VALUE "LegalCopyright", "Unified Transcriber contributors\0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END

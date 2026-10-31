@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>文字起こし統合スタジオ｜画面でわかる操作ガイド</title>
+<style>
+:root{color-scheme:light dark;--bg:#f3f6fb;--surface:#fff;--ink:#16263d;--muted:#5d6e84;--line:#dce4ef;--blue:#2459d3;--tint:#eaf1ff;--green:#08785e;--warn:#855011;--soft:#fff7e8}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:28px}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.85 "Yu Gothic UI","Hiragino Kaku Gothic ProN",Meiryo,system-ui,sans-serif}a{color:var(--blue);text-underline-offset:4px}a:hover{text-decoration-thickness:2px}a:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:5px;border-radius:4px}code,kbd{font-family:Consolas,"SFMono-Regular",monospace;font-size:.9em}code{overflow-wrap:anywhere;background:var(--tint);padding:.1em .35em;border-radius:4px}kbd{background:var(--surface);border:1px solid var(--line);border-bottom-width:2px;padding:2px 6px;border-radius:5px;white-space:nowrap}
+.layout{max-width:1450px;margin:auto;display:grid;grid-template-columns:248px minmax(0,1fr);gap:48px;padding:36px 40px 80px}.sidebar{position:sticky;top:30px;align-self:start}.wordmark{display:flex;align-items:center;gap:12px;font-size:15px;font-weight:800;line-height:1.5;margin:0 0 30px}.brand{display:grid;place-items:center;width:38px;height:38px;background:var(--blue);color:white;border-radius:10px;font-size:25px}.sidebar nav a{display:flex;gap:11px;padding:9px 10px;color:var(--muted);text-decoration:none;border-radius:8px;font-size:14px}.sidebar nav a:hover{background:var(--tint);color:var(--blue)}.sidebar nav span{font-family:Consolas,monospace;font-size:12px;color:var(--blue);padding-top:3px}.sidebar .small{padding:16px 10px;font-size:12px;line-height:1.8;color:var(--muted)}
+main{min-width:0;max-width:1050px}.eyebrow{margin:5px 0 14px;font-size:12px;letter-spacing:.15em;font-weight:800;color:var(--blue)}h1{font-size:clamp(30px,3.6vw,46px);line-height:1.4;letter-spacing:-.035em;margin:0 0 18px}h2{font-size:28px;line-height:1.5;letter-spacing:-.025em;margin:0 0 18px}h3{font-size:18px;line-height:1.65;margin:22px 0 8px}p{margin:10px 0 18px}.lead{font-size:17px;line-height:1.9;color:var(--muted);max-width:800px}.chips{display:flex;flex-wrap:wrap;gap:9px;margin:22px 0 32px}.chip{font-size:12px;line-height:1.5;border:1px solid var(--line);padding:7px 11px;border-radius:100px;background:var(--surface)}.jump{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:28px 0 8px}.jump a{background:var(--surface);border:1px solid var(--line);padding:19px 17px;border-radius:12px;text-decoration:none;font-weight:750;line-height:1.6}.jump a small{display:block;font-weight:400;font-size:12px;color:var(--muted);margin-top:6px}.section{margin-top:64px;padding-top:30px;border-top:1px solid var(--line)}.section-title{display:flex;align-items:center;gap:13px;margin-bottom:14px}.section-title h2{margin:0}.step-no{font:700 14px/1 Consolas,monospace;color:var(--blue);background:var(--tint);padding:11px;border-radius:8px}.path{font-size:13px;color:var(--muted);margin:-2px 0 24px}.note,.tip{border:1px solid var(--line);border-left:4px solid var(--blue);background:var(--surface);padding:14px 17px;border-radius:0 10px 10px 0;margin:20px 0;font-size:14px;line-height:1.85}.note strong,.tip strong{display:block;margin-bottom:3px}.tip{border-left-color:var(--green)}.warning{border-left-color:var(--warn);background:var(--soft)}.muted{color:var(--muted)}
+ol.steps{list-style:none;counter-reset:guide;margin:18px 0 26px;padding:0}ol.steps>li{counter-increment:guide;position:relative;padding:4px 0 20px 45px;border-left:1px solid var(--line);margin-left:14px}ol.steps>li:last-child{border-left:0;padding-bottom:3px}ol.steps>li:before{content:counter(guide);position:absolute;left:-15px;top:2px;display:grid;place-items:center;width:29px;height:29px;border-radius:50%;background:var(--blue);color:white;font-size:13px;font-weight:750;text-align:center;line-height:21px;border:4px solid var(--bg)}ol.steps strong{font-weight:750}ol.steps p{margin:5px 0;color:var(--muted);font-size:14px}.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin:20px 0}.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:19px}.card h3{margin:0 0 8px}.card p{font-size:14px;line-height:1.85;margin:0}.card .tag{display:inline-block;color:var(--blue);background:var(--tint);font-size:11px;font-weight:750;padding:2px 8px;border-radius:5px;margin-bottom:9px}
+figure{margin:24px 0 30px}.shot{position:relative;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 12px 35px #1936570a}.shot img{display:block;width:100%;height:auto}.shot.narrow{max-width:720px;margin:auto}.pin{position:absolute;display:grid;place-items:center;width:29px;height:29px;transform:translate(-50%,-50%);background:#1e53ce;color:white;font-size:13px;font-weight:800;line-height:1;text-decoration:none;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px #152b5a55}.pin:hover{background:#123993;color:white}.caption{font-size:12px;line-height:1.75;color:var(--muted);padding-top:10px}.figure-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;align-items:start}.figure-grid figure{margin:8px 0 18px}.legend{display:grid;grid-template-columns:repeat(2,1fr);gap:11px 20px;margin:20px 0}.legend p{font-size:14px;margin:0;display:flex;gap:10px;align-items:flex-start}.bubble{display:inline-grid;place-items:center;min-width:24px;height:24px;background:var(--tint);color:var(--blue);border-radius:50%;font-size:12px;font-weight:800;line-height:1;margin-top:3px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface);margin:18px 0 25px}table{width:100%;border-collapse:collapse;font-size:14px;line-height:1.75}th,td{text-align:left;vertical-align:top;padding:12px 15px;border-bottom:1px solid var(--line)}th{background:var(--tint);font-weight:750}tr:last-child td{border-bottom:0}td:first-child{min-width:155px}details{border:1px solid var(--line);background:var(--surface);border-radius:10px;margin:14px 0;padding:0 18px}summary{font-weight:750;font-size:15px;cursor:pointer;padding:15px 0}details[open]{padding-bottom:12px}details p,details li{font-size:14px}.mobile-menu{display:none}.footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);margin-top:54px;padding-top:22px}.inline-links{display:flex;flex-wrap:wrap;gap:18px;font-size:13px;margin-top:20px}
+@media(prefers-color-scheme:dark){:root{--bg:#101720;--surface:#192331;--ink:#e5edf8;--muted:#afbed1;--line:#354458;--blue:#9bbcff;--tint:#22344d;--green:#6dd8b5;--warn:#e3b775;--soft:#2e281e}.brand,.steps>li:before{background:#2e65d9;color:white}.shot{border-color:#50617a}.pin{background:#2459d3;color:#fff}.chip{color:var(--ink)}}
+@media(max-width:1000px){.layout{grid-template-columns:190px minmax(0,1fr);gap:26px;padding:26px 24px 60px}.sidebar nav a{font-size:12px}.sidebar .small{padding-right:0}.jump{gap:8px}.jump a{padding:14px;font-size:14px}.figure-grid{gap:14px}}
+@media(max-width:750px){.layout{display:block;padding:23px 18px 50px}.sidebar{position:static}.wordmark{margin-bottom:18px}.sidebar nav,.sidebar .small{display:none}.mobile-menu{display:block;margin:0 0 28px}.mobile-menu a{display:block;padding:6px 0;font-size:14px}.eyebrow{font-size:11px}h1{font-size:32px}h2{font-size:24px}.lead{font-size:15px}.chips{margin:18px 0 24px}.jump{grid-template-columns:1fr}.jump a{padding:13px 16px}.jump a small{margin-top:3px}.section{margin-top:45px;padding-top:24px}.cards,.figure-grid,.legend{grid-template-columns:1fr}.pin{width:23px;height:23px;font-size:10px;border-width:2px}.card{padding:17px}.section-title{gap:10px}.step-no{padding:9px}th,td{padding:10px 12px;font-size:13px}.shot{border-radius:8px}.path{font-size:12px}.figure-grid .shot{max-width:620px}.caption{font-size:11px}}
+@media print{.section-title{display:block}.step-no{display:inline-block;margin-bottom:8px}body{color:#111;background:#fff;font-size:11pt}.layout{display:block;padding:0;max-width:none}.sidebar,.jump,.mobile-menu,.pin{display:none}.section{margin-top:24px;padding-top:16px}figure,.card,table{break-inside:avoid}.shot{box-shadow:none}.cards,.figure-grid{display:block}.figure-grid figure{max-width:90%;margin:auto auto 20px}.section-title h2{font-size:20pt}.footer{margin-top:25px}a{color:#12479a}details{display:block}summary{list-style:none}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="wordmark"><span class="brand" aria-hidden="true">▥</span><span>文字起こし<br>統合スタジオ</span></div>
+  <nav aria-label="ガイドの目次">
+    <a href="#install"><span>01</span>インストール</a><a href="#main"><span>02</span>メイン画面の見方</a>
+    <a href="#files"><span>03</span>ファイルを文字起こし</a><a href="#record"><span>04</span>録音・ライブ認識</a>
+    <a href="#gamebar"><span>05</span>Game Barで録画</a><a href="#speakers"><span>06</span>話者名を整える</a>
+    <a href="#merge"><span>07</span>結合・変換</a><a href="#settings"><span>08</span>保存先・設定・表示</a>
+    <a href="#updates"><span>09</span>更新・修復・削除</a><a href="#help"><span>10</span>困ったとき</a>
+  </nav>
+  <p class="small">v1.0.0 操作ガイド（配布検証中）<br>ドラッグ＆ドロップ用依存に外部の機械判定による警告があり、対象ファイルを確認中です。確認完了までは新規導入・再配布を控えてください。<br>このガイドはオフラインでも読めます。画像のリンクで元の大きさを開けます。</p>
+</aside>
+<main>
+  <p class="eyebrow">QUICK START · WINDOWS</p>
+  <h1>音声から文字へ。<br>画面を見ながら、ひとつずつ。</h1>
+  <p class="lead">最初の導入から、録音・文字起こし・話者名の仕上げまで。よく使う操作を、実際の画面と一緒に案内します。</p>
+  <div class="chips"><span class="chip">音声・動画 → TXT / CSV</span><span class="chip">マイク・PC音を録音</span><span class="chip">Game Bar連携</span><span class="chip">v1.0.0</span></div>
+  <details class="mobile-menu"><summary>目次を開く</summary><nav aria-label="モバイルの目次"><a href="#install">01 インストール</a><a href="#main">02 メイン画面の見方</a><a href="#files">03 ファイルを文字起こし</a><a href="#record">04 録音・ライブ認識</a><a href="#gamebar">05 Game Barで録画</a><a href="#speakers">06 話者名を整える</a><a href="#merge">07 結合・変換</a><a href="#settings">08 保存先・設定・表示</a><a href="#updates">09 更新・修復・削除</a><a href="#help">10 困ったとき</a></nav></details>
+  <div class="jump"><a href="#files">手元の録音を文字にする<small>ファイルを追加 → 開始 → 結果を開く</small></a><a href="#record">これから録音する<small>マイク・PC音・同時録音を選ぶ</small></a><a href="#gamebar">画面も一緒に録る<small>Game Barの録画と音声を連動</small></a></div>
+
+  <section class="section" id="install">
+    <div class="section-title"><span class="step-no">01</span><h2>最初にインストールする</h2></div>
+    <p>最初にダウンロードするのは <code>Unified_Transcriber_Setup_v1.0.0.exe</code> です。保存したexeを開き、画面の案内に沿って進めます。PythonやAIライブラリが未導入のPCでも、同梱ランタイムで本体を起動できます。完了後の自動起動も選べます。</p>
+    <ol class="steps">
+      <li><strong>インストール先を選ぶ</strong><p>アプリ・Python・追加環境・モデルを置くフォルダーです。</p></li>
+      <li><strong>ログ・録音・結果の共通保存先を確認する</strong><p>既定はドキュメント内の<code>UnifiedTranscriber</code>です。別のフォルダーにも変更でき、用途別のサブフォルダーを作成します。</p></li>
+      <li><strong>使いたいものを選ぶ</strong><p>プログラム一覧への登録、スタートメニューへの追加、録音環境、推奨AIセット（②）を選択します。AIセットは後から追加できます。</p></li>
+      <li><strong>CUDAの表示を確認してから、実行環境とモデルを選ぶ</strong><p>NVIDIA GPU・ドライバーによる利用の見込みを表示します。CPU／GPUと、モデル（既定は<code>large-v3-turbo</code>）を選びます。実際のCUDA利用は環境導入後の診断で確認してください。追加取得にはインターネットと十分な空き容量が必要です。</p></li>
+      <li><strong>アプリを起動し、短い音声で確認する</strong><p>新規設定の認識方式は「② faster-whisper + Resemblyzer（推奨）」です。最初は数十秒の録音で、保存先と認識結果を確認しましょう。既存設定では選択済みの方式を保持します。</p></li>
+    </ol>
+    <figure><div class="shot"><img src="images/guide-install.svg" width="880" alt="セットアップ項目の説明図。インストール先、共通保存先、プログラム登録、録音環境、AIセットを選べる。" loading="lazy"></div><figcaption class="caption">セットアップ項目の説明図。AIセットは任意です。<a href="images/guide-install.svg">図を大きく開く</a></figcaption></figure>
+    <div class="table-wrap"><table><thead><tr><th>導入時の選択</th><th>選ぶとできること</th><th>後から変更</th></tr></thead><tbody><tr><td>プログラム一覧に登録</td><td>Windowsのアプリ一覧から見つけやすくします。</td><td>セットアップexe</td></tr><tr><td>スタートメニューに追加</td><td>アイコンからアプリを起動できます。</td><td>セットアップexe</td></tr><tr><td>録音環境をセットアップ</td><td>マイク・PC音の録音を準備します。</td><td>「録音・録画」のセットアップ</td></tr><tr><td>推奨AIセット（②）</td><td>②の認識方式と選んだモデルで文字起こしを始められます。</td><td>「設定・診断」の一括セットアップ</td></tr></tbody></table></div>
+    <p class="note">追加の録音環境やAIモデルの取得に失敗しても、導入済みのアプリは残ります。接続や空き容量を確認し、アプリ内のセットアップから再試行できます。</p>
+    <p class="note"><strong>既存のインストールがある場合</strong>インストール済みの版がこのセットアップより新しい番号の場合は通常の更新として導入できません。設定・モデル・録音・結果を別の場所へ退避し、別フォルダーへの導入を検討してください。インストール先内のデータを削除する前に必ず退避してください。古い版から更新した後は、「録音・録画 → 取り込み・環境 → 録音・録画のセットアップ…」を再実行して、音声・動画処理ツールも更新してください。利用中の認識方式を一括セットアップし直す方法でも更新できます。設定やモデルは保持します。未導入の案内が出た場合も同じ操作で修復します。</p>
+    <details><summary>Python・依存ライブラリの対応範囲</summary><p>GUI・従来方式用のPython 3.11.18と、方式②・録音用のPython 3.14.10（<code>MLRuntime</code>）を同梱します。利用者がグローバルなPythonや依存ライブラリを先に導入する必要はありません。</p><p>方式②・録音は対応するWindows wheelの構成に更新しています。Python 3.15は必要なwheelがそろっていないため、現時点では対応対象外です。①・③・④・⑤は従来の互換構成を維持します。</p><p>旧版の方式②・録音環境は、新しいPythonで別環境を構築・検査してから切り替えます。構築に失敗した場合は旧環境を保持します。同じPython版の既存環境は再利用して依存関係を更新します。設定・モデルキャッシュ・録音・結果は環境の置き換え対象外です。実際の確認範囲は<a href="VALIDATION.md">検証資料</a>を参照してください。</p></details>
+    <p class="note warning"><strong>旧版から方式②を使っている方へ</strong>本体の更新後に、一括セットアップで方式②を再実行し、認識環境も更新してください。他の従来方式にはモデルの読み込みに関する確認事項が残ります。信頼できる配布元のモデルを使用し、外部から受け取った<code>.pt</code>／<code>.pth</code>／<code>.ckpt</code>を持ち込まないでください。<a href="AUDIT.md#ai環境に残る確認事項">対象と制約を確認する</a></p>
+    <details><summary>別の認識方式・モデルも使いたい</summary><p>「設定・診断 → 環境の準備・確認 → 一括セットアップ…」で、追加したい方式とモデルを選びます。録音だけを使う場合は、音声認識モデルの導入を後回しにできます。</p><figure><div class="shot narrow"><img src="images/guide-setup.png" width="860" height="760" alt="一括セットアップ。実行方式のトグル、CPU/GPUの選択、モデルを事前取得するタブがある。" loading="lazy"></div><figcaption class="caption">追加方式を導入する画面。<a href="images/guide-setup.png">画像を大きく開く</a></figcaption></figure></details>
+  </section>
+
+  <section class="section" id="main">
+    <div class="section-title"><span class="step-no">02</span><h2>メイン画面の見方</h2></div>
+    <p>上から「準備する」「ファイルを選ぶ」「結果を見る」「開始する」の順に並んでいます。アプリ TOP の「画面付き操作ガイド」から、このガイドを直接開けます（下の画面例は追加前のものです）。画像上の番号を押すと、対応する説明へ移動できます。</p>
+    <figure><div class="shot"><img src="images/main-light.png" width="1180" height="900" alt="メイン画面。上部に録音と設定、中央にファイル一覧、左下に認識文、右下に詳細ログ、最下部に開始と停止がある。">
+      <a class="pin" href="#record" style="left:28%;top:10.5%" aria-label="1 録音とGame Bar">1</a><a class="pin" href="#settings" style="left:95%;top:17%" aria-label="2 認識方式と詳細設定">2</a><a class="pin" href="#files" style="left:83%;top:32%" aria-label="3 ファイル一覧">3</a><a class="pin" href="#preview" style="left:41%;top:68.5%" aria-label="4 認識プレビューとコピー">4</a><a class="pin" href="#help" style="left:92%;top:68.5%" aria-label="5 詳細ログ">5</a><a class="pin" href="#stop" style="left:34%;top:91.5%" aria-label="6 開始と停止">6</a>
+    </div><figcaption class="caption">架空のファイル名・本文を使った画面例。<a href="images/main-light.png">画像を大きく開く</a></figcaption></figure>
+    <div class="legend"><p><span class="bubble">1</span><span><strong>録音・Game Bar</strong><br>すぐ開始するボタン。設定を開きたいときはShift＋クリック。</span></p><p><span class="bubble">2</span><span><strong>認識方式・詳細設定</strong><br>方式、モデル、CPU/GPU、保存先を確認します。</span></p><p><span class="bubble">3</span><span><strong>ファイル一覧（キュー）</strong><br>追加した順に処理します。完了した項目から結果を開けます。</span></p><p><span class="bubble">4</span><span><strong>認識プレビュー</strong><br>認識した文章を表示。「コピー」で全文をコピーします。</span></p><p><span class="bubble">5</span><span><strong>詳細ログ</strong><br>進捗やエラーの理由を確認します。別ウィンドウでも開けます。</span></p><p><span class="bubble">6</span><span><strong>開始・停止</strong><br>通常の文字起こしを開始します。「すべて停止」は上部にあります。</span></p></div>
+    <p class="note">メニューはクリックすると下へ展開します。項目が多い場合は、中カテゴリを開いて操作を選びます。画面が狭いときは、スクロールして下部の項目を確認できます。</p>
+  </section>
+
+  <section class="section" id="files">
+    <div class="section-title"><span class="step-no">03</span><h2>保存済みファイルを文字にする</h2></div>
+    <p class="path">メイン画面 → ファイルを追加… → 文字起こしを開始</p>
+    <ol class="steps"><li><strong>音声・動画を追加する</strong><p>「ファイルを追加…」から選ぶか、ファイルを一覧へドラッグ＆ドロップします。複数ファイルをまとめて追加できます。フォルダーの追加は「追加メニュー」から選びます。</p></li><li><strong>認識方式・保存先・出力形式を確認する</strong><p>方式を選び「詳細設定…」を開きます。TXT、CSV、両方から選べます。ファイルごとに変えるときは、一覧から選択して「選択項目」を開きます。</p></li><li><strong>「文字起こしを開始」を押す</strong><p>認識文は左、進捗や詳細は右へ表示されます。次のファイルの認識が始まると、プレビューは切り替わります。</p></li><li><strong>完了した行をダブルクリックする</strong><p>結果画面から「結果の保存先を開く」「元ファイルの場所を開く」「この結果の話者名を設定」を選べます。保存先の列をダブルクリックすると、そのフォルダーを直接開きます。</p></li></ol>
+    <div class="cards"><article class="card" id="preview"><span class="tag">文章を取り出す</span><h3>「コピー」でプレビュー全文をコピー</h3><p>左のプレビューの「コピー」は、スクロールで隠れた部分もまとめてコピーします。確定した結果を保管・編集するときは、保存されたTXT／CSVを使います。</p></article><article class="card"><span class="tag">処理済みのファイル</span><h3>上書き・スキップ・別名を選ぶ</h3><p>「選択項目」から既存出力の扱いを指定できます。別名保存なら元の結果を残せます。一覧のDeleteはキューから外す操作で、元ファイルは削除しません。</p></article></div>
+    <details><summary>対応している入力形式</summary><p>MP4 / MOV / MKV / AVI / MP3 / WAV / M4A / FLAC / AAC / WMAに対応します。ファイルに音声が含まれていない場合や、破損している場合は認識できません。</p></details>
+  </section>
+
+  <section class="section" id="record">
+    <div class="section-title"><span class="step-no">04</span><h2>録音しながら文字にする</h2></div>
+    <p class="path">TOPの「リアルタイム録音」／「録音・録画 → 録音・録画を開始」</p>
+    <ol class="steps"><li><strong>動作モードと音声入力元を選ぶ</strong><p>マイク、PC再生音、両方から選びます。「デバイス更新」で機器を選び、「入力テスト」で音が入ることを確認します。</p></li><li><strong>ライブ認識と停止後の処理を決める</strong><p>録音中にも文字を見たいときは「録音＋文字起こし」。録音中の負荷を抑えて後から認識したいときは「録音のみ」にして、終了後の文字起こしをONにします。</p></li><li><strong>保存形式・保存先を確認し「録音を開始」</strong><p>ライブ結果は左のプレビューへ追記されます。10 / 20 / 30 / 60秒の区間から選べます。</p></li><li><strong>「録音を終了」またはメインの「停止」</strong><p>録音を保存し、ONにした終了後の文字起こしを続けます。全文の再解析ではプレビューを一度クリアし、録音の先頭から表示し直します。</p></li></ol>
+    <figure><div class="shot narrow"><img src="images/guide-recording.png" width="820" height="1300" alt="リアルタイム録音設定。動作モード、音声入力元、デバイス、ライブ認識の区間、保存形式、保存先、停止後の全文解析を選べる。" loading="lazy"></div><figcaption class="caption">マイクとPC音をL/Rに分ける設定例。項目が画面に収まらない場合は縦にスクロールします。<a href="images/guide-recording.png">画像を大きく開く</a></figcaption></figure>
+    <div class="table-wrap"><table><thead><tr><th>やりたいこと</th><th>動作モード</th><th>停止後の文字起こし</th></tr></thead><tbody><tr><td>録音しながら認識</td><td>録音＋文字起こし</td><td>全文の最終版もほしいときはON</td></tr><tr><td>録音後だけ認識</td><td>録音のみ</td><td>ON</td></tr><tr><td>音声だけを保存</td><td>録音のみ</td><td>OFF</td></tr><tr><td>文章だけを残す</td><td>文字起こしのみ</td><td>処理中の一時音声は終了後に削除</td></tr></tbody></table></div>
+    <div class="tip"><strong>後で音を分けて編集したい</strong>音声入力元を「マイク＋PC再生音」、保存チャンネルを「L：PC音 / R：マイク」にします。左にはPC音をモノラルで、右にはマイクを保存します。分離した編集にはWAVが便利です。</div>
+    <p class="note"><strong>ライブの話者番号は暫定です</strong>区間が変わると同じ番号でも別の人物を表す場合があります。全文の最終解析では、録音全体を使って話者分離をやり直します。</p>
+  </section>
+
+  <section class="section" id="gamebar">
+    <div class="section-title"><span class="step-no">05</span><h2>Game Barで画面も一緒に録る</h2></div>
+    <p class="path">TOPの「Game Bar連動」／「録音・録画 → 録音・録画を開始」</p>
+    <ol class="steps"><li><strong>Windows側のGame Barを確認する</strong><p>録画したいアプリがGame Barで録画できることを確認します。録画開始／停止のショートカットは、本アプリとWindows側で同じ組み合わせにします。</p></li><li><strong>「画面を選ぶ…」で対象を選ぶ</strong><p>一覧のプレビューで、録画したいウィンドウを確認します。対象アプリは毎回選択します。設定だけ保存する場合、対象の指定は不要です。</p></li><li><strong>音声・ライブ認識・停止後の処理を選ぶ</strong><p>録画中に文章を見たい場合は「録画中にライブ文字起こし」をONにします。録画後の全文認識と、別録音音声を同期したMP4の作成は、個別に選べます。</p></li><li><strong>「録画を開始」し、終了時に「録画を停止」</strong><p>音声は本アプリでも独立して保存します。終了後は、Game BarのMP4と音声、文字起こし結果を確認します。</p></li></ol>
+    <figure><div class="shot narrow"><img src="images/guide-gamebar.png" width="820" height="1340" alt="Game Bar連動設定。毎回選ぶ録画対象、録画キー、音声デバイス、保存先、録画中のライブ文字起こしと停止後の認識を設定する。" loading="lazy"></div><figcaption class="caption">ライブ認識をONにした設定例。<a href="images/guide-gamebar.png">画像を大きく開く</a></figcaption></figure>
+    <p class="note"><strong>TOPとメニューの使い分け</strong>初回は必ず設定画面を開きます。「次回以降は設定画面をスキップする」をONにすると、TOPは前回の収録設定を使います。<kbd>Shift</kbd>を押しながらTOPをクリックするか、メニューから開くと毎回設定できます。スキップ中でも録画対象だけは毎回選びます。</p>
+    <details><summary>録画されていない・同期がずれているとき</summary><p>Game BarはWindowsデスクトップや一部のアプリを録画できません。まずWindows側だけで短い録画を試してください。同期は開始時刻に基づく概算です。収録済みMP4を「録音・録画 → 取り込み・環境 → 標準録画を取り込み・文字起こし…」へ入れると、別音声のミックス／置き換えと開始位置の補正ができます。</p></details>
+  </section>
+
+  <section class="section" id="speakers">
+    <div class="section-title"><span class="step-no">06</span><h2>話者名を整える</h2></div>
+    <p class="path">完了したキューをダブルクリック → この結果の話者名を設定<br>または「ツール → 変換・話者名 → 話者名を設定…」</p>
+    <ol class="steps"><li><strong>話者付きTXT／CSVを読み込み「解析」</strong><p>完了した結果から開くと、そのファイルが選択されます。保存済みのファイルは「参照…」で選びます。</p></li><li><strong>発話を開き、割当名を入力する</strong><p>「発話を表示」や「すべて開く」で、誰の発言かを確認します。名前の自動特定はしないため、確認して割り当てます。</p></li><li><strong>保存先を確認して「話者名を置換して保存」</strong><p>元のファイルを残し、別名で保存します。本文中の同じ文字や発言内容は変更しません。</p></li></ol>
+    <figure><div class="shot"><img src="images/guide-speakers.png" width="860" height="780" alt="話者名設定。SPEAKER_00とSPEAKER_01の発言を開き、話者Aと話者Bを割り当てて別名保存する例。" loading="lazy"></div><figcaption class="caption">発話を確認して名前を割り当てる画面。<a href="images/guide-speakers.png">画像を大きく開く</a></figcaption></figure>
+    <p class="tip">メイン画面の「完了後に話者名設定」をONにすると、文字起こし完了後に編集画面が開きます。複数結果がある場合は順番に表示します。</p>
+  </section>
+
+  <section class="section" id="merge">
+    <div class="section-title"><span class="step-no">07</span><h2>ファイルを結合・変換する</h2></div>
+    <p class="path">「ツール → 結合・音声の抽出」／「ツール → 変換・話者名」</p>
+    <ol class="steps"><li><strong>結合する種類を選び、ファイルを追加</strong><p>TXT結合、CSV結合、音声結合から選びます。音声結合には動画も入力でき、音声だけを取り出して結合できます。</p></li><li><strong>順番・保存先・名前を確認する</strong><p>「↑ 上へ」「↓ 下へ」で並べ替えます。手動の順番を保つときは「手動順・追加順」を選びます。</p></li><li><strong>必要なら元ファイルの退避をONにし、結合を開始</strong><p>「結合成功後、元ファイルを各フォルダーの _old に移動」は初期OFFです。ONの場合、結合結果を保存できた後に元ファイルを退避します。</p></li></ol>
+    <figure><div class="shot"><img src="images/guide-merge.png" width="1120" height="900" alt="TXT結合。結合順、保存フォルダー、ファイル名、元ファイルを_oldへ移すトグルを選べる。" loading="lazy"></div><figcaption class="caption">元ファイルを退避するトグルをONにした表示例。実際の初期値はOFFです。<a href="images/guide-merge.png">画像を大きく開く</a></figcaption></figure>
+    <div class="cards"><article class="card"><h3>音声結合後に文字起こし</h3><p>音声の結合画面で「結合後に自動的に文字起こしする」をONにします。メイン画面の認識設定を使います。結合した音声は、認識に失敗しても残ります。</p></article><article class="card"><h3>TXT ⇔ CSV変換</h3><p>発話の時刻・話者・本文を表形式で扱えます。情報保持CSVでは元の行順、見出し、空行を補助列に保存します。TXTへ戻す予定なら、補助列を削除しないでください。</p></article></div>
+    <p class="note warning"><strong>外部から受け取ったCSVをExcelで開くとき</strong>ダブルクリックではなく、Excelの「データ → テキストまたはCSVから」で読み込み、本文・話者・ファイル名の列を文字列として指定してください。文章の先頭が<code>=</code>などの場合、Excelが数式と解釈することがあります。外部リンクや実行を促す警告を承認しないでください。</p>
+    <p class="note warning"><strong>退避はファイルの移動です</strong>退避した元ファイルは、各入力フォルダーの<code>_old</code>にあります。別のソフトから参照している場合は、その参照先も変わります。結合が失敗・中止した場合は移動しません。</p>
+  </section>
+
+  <section class="section" id="settings">
+    <div class="section-title"><span class="step-no">08</span><h2>保存先・設定・見た目を変える</h2></div>
+    <h3>固有名詞を認識時のヒントにする</h3>
+    <p>メイン画面の「単語辞書…」または「設定・診断 → 操作・設定 → 認識用の単語辞書…」から設定します。写真の画面例にはこのボタンはまだ表示されていません。</p>
+    <ol class="steps"><li><strong>「単語辞書を使用する」をオン</strong><p>初期状態ではオフです。</p></li><li><strong>共通・用途別の単語を登録</strong><p>「表記」に例として「青空株式会社」を入力し、「単語を追加」を押します。読み方は辞書管理用で、認識エンジンには送られません。共通グループは常に使用され、用途別グループは使うものを選びます。</p></li><li><strong>「辞書を保存」してから認識を開始</strong><p>通常のファイルとライブ認識でヒントとして使います。結果の文章の自動置換はしません。</p></li></ol>
+    <p class="note">ヒントは正しい認識を保証しません。登録上限は1,000語・50グループ、単語・読み方は各120文字です。実際に使うヒントの長さにも上限があるため、一部が省略される場合は辞書画面またはログで確認します。「、」は単語の区切りとして使うため登録できません。辞書はローカルに保存され、辞書画面から単体で読み込み・書き出しでき、設定全体の移行にも含まれます。</p>
+    <h3>保存先を選ぶ</h3>
+    <p>「入力と同じ場所」は元ファイルのフォルダー、「デフォルト」は共通保存先の用途別フォルダーです。共通保存先の既定は、ドキュメント内の<code>UnifiedTranscriber</code>です。OneDriveや別ドライブへ移動済みのドキュメントも、その登録先を使います。</p>
+    <p>共通保存先は本体のセットアップ、一括セットアップ、方式別セットアップ、詳細設定の保存先設定から変更できます。既存のファイルは自動移動しません。個別に設定した保存先と「入力と同じ場所」は優先されます。結合では先頭ファイルの場所を使います。</p>
+    <figure><div class="shot narrow"><img src="images/settings.png" width="850" height="780" alt="詳細設定の保存先・認証タブ。入力と同じ場所、デフォルト、出力形式、ファイル名の日時付加を設定する。" loading="lazy"></div><figcaption class="caption">保存先・出力名の設定。日時は架空の例です。<a href="images/settings.png">画像を大きく開く</a></figcaption></figure>
+    <div class="table-wrap"><table><thead><tr><th>保存するもの</th><th>共通保存先内のフォルダー</th></tr></thead><tbody><tr><td>文字起こし・形式変換</td><td><code>Transcriptions</code></td></tr><tr><td>録音・同期後の動画</td><td><code>Recordings</code></td></tr><tr><td>結合結果</td><td><code>Merged</code></td></tr><tr><td>話者名の編集結果</td><td><code>SpeakerEdits</code></td></tr><tr><td>起動・処理・追加セットアップのログ</td><td><code>Logs</code></td></tr><tr><td>設定JSON・診断ZIPの書き出し</td><td><code>Exports</code></td></tr></tbody></table></div>
+    <p class="muted">設定はインストール先の<code>Data/settings.json</code>、Python・追加環境・モデルキャッシュもインストール先に置きます。旧版のログや録音は元の場所に残ります。共通保存先を変更したとき、起動時から開いている<code>gui_startup.log</code>は次回起動から切り替わります。</p>
+    <p class="muted">Game Barが作る元のMP4はWindows側で指定した場所に保存されます。入力ファイルのないリアルタイム録音では、録音先フォルダーを指定します。</p>
+    <h3>別のPCへ設定を移す</h3>
+    <p>「設定・診断 → 操作・設定 → 設定を書き出す…」でJSONへ保存します。移行先では「設定を読み込む…」を選びます。アプリ内・ユーザーフォルダー内の保存先は、読み込み先に合わせて反映します。</p>
+    <figure><div class="shot narrow"><img src="images/settings-export.png" width="680" height="440" alt="設定を書き出す画面。出力先と認証トークンを含めるかを選ぶ。認証トークンのトグルはOFF。" loading="lazy"></div><figcaption class="caption">通常の書き出しには認証トークンを含めません。<a href="images/settings-export.png">画像を大きく開く</a></figcaption></figure>
+    <p class="note warning"><strong>設定JSONを共有するとき</strong>「認証トークンも含める」をONにしたJSONには、トークンが平文で入ります。共有・GitHubへの登録はしないでください。AIモデル、実行環境、録音データは設定JSONへ含まれません。</p>
+    <h3>ライト・システム・ダーク</h3>
+    <p>TOP右上の3つのアイコンで切り替えます。左から太陽＝ライト、モニター＝デバイス設定に合わせる、月＝ダークです。選択欄や数値欄は、一度クリックしてフォーカスした後だけホイールで変更できます。</p>
+    <div class="figure-grid"><figure><div class="shot"><img src="images/main-dark.png" width="1180" height="900" alt="ダーク表示のメイン画面。" loading="lazy"></div><figcaption class="caption">ダーク表示。<a href="images/main-dark.png">大きく開く</a></figcaption></figure><figure><div class="shot"><img src="images/main-compact.png" width="900" height="640" alt="小さいウィンドウのメイン画面。" loading="lazy"></div><figcaption class="caption">小さいウィンドウでも操作できます。<a href="images/main-compact.png">大きく開く</a></figcaption></figure></div>
+    <h3>ショートカットを自分のキーにする</h3>
+    <p>「設定・診断 → 操作・設定 → 録音・録画のショートカット…」で「キー入力」を選び、実際の組み合わせを押して登録します。WindowsやGame Barと重複するキーは、両側の設定を確認してください。</p>
+    <h3>通知領域で待機する</h3>
+    <p>「設定・診断 → 操作・設定 → 自動起動・常駐の設定…」で、サインイン時の自動起動、最小化、閉じる操作のそれぞれを選択します。通知領域のアイコンをクリックすると画面が開き、右クリックから録音・停止・完全終了を選べます。アイコンが見えないときはWindowsの隠れたアイコンも確認してください。録音キーは別途設定してください。Game Barは毎回対象ウィンドウを選びます。</p>
+    <div class="table-wrap"><table><thead><tr><th>キー</th><th>操作</th></tr></thead><tbody><tr><td><kbd>Ctrl</kbd>＋<kbd>O</kbd></td><td>ファイルを追加</td></tr><tr><td><kbd>Ctrl</kbd>＋<kbd>Enter</kbd></td><td>文字起こしを開始</td></tr><tr><td>一覧内で<kbd>Ctrl</kbd>＋<kbd>A</kbd></td><td>一覧の全項目を選択</td></tr><tr><td>一覧内で<kbd>Delete</kbd></td><td>選択項目をキューから外す（元ファイルは保持）</td></tr><tr><td><kbd>F1</kbd></td><td>使い方を開く</td></tr></tbody></table></div>
+  </section>
+
+  <section class="section" id="updates">
+    <div class="section-title"><span class="step-no">09</span><h2>更新・修復・アンインストール</h2></div>
+    <p class="path">設定・診断 → サポート → アプリの更新・確認間隔…</p>
+    <h3>アプリ起動時の更新チェック</h3>
+    <p>更新チェックの間隔を「起動するたび」「指定した日数ごと」「確認しない」から選びます。新しい版が見つかると確認画面が開きます。内容を確認して更新を選ぶと、セットアップexeをダウンロードして、検証後に更新へ進みます。</p>
+    <figure><div class="shot narrow"><img src="images/guide-updates.png" width="720" height="550" alt="アプリの更新。指定した日数ごと・起動するたび・確認しないから選び、今すぐ確認もできる。" loading="lazy"></div><figcaption class="caption">7日ごとに確認する設定例。<a href="images/guide-updates.png">画像を大きく開く</a></figcaption></figure>
+    <p class="note"><strong>現在の作業を終えてから更新</strong>録音・文字起こしなどを終了し、保存できたことを確認してください。更新では既存の設定・モデル・録音・結果を引き継ぎます。ダウンロードや検証に失敗した場合は更新を実行せず、今のアプリを引き続き使えます。</p>
+    <h3>セットアップexeをもう一度開く</h3>
+    <div class="table-wrap"><table><thead><tr><th>インストール済みの版</th><th>選べる操作</th><th>目的</th></tr></thead><tbody><tr><td>セットアップexeより古い</td><td>更新</td><td>設定やデータを残して新しい版へ進む</td></tr><tr><td>同じ版</td><td>修復／アンインストール／キャンセル</td><td>不足したアプリファイルを直す、削除する、作業をやめる</td></tr><tr><td>より新しい版</td><td>新しい版の保守プログラムで修復／アンインストール／キャンセル</td><td>古いセットアップによる上書きはしない</td></tr></tbody></table></div>
+    <p>インストール先にある<code>UnifiedTranscriberSetup.exe</code>からも保守画面を開けます。古いセットアップexeから新しいアプリを上書きして、意図せず前の版へ戻すことはありません。</p>
+    <p>手動で更新・修復・アンインストールする場合は、先に通知領域アイコンの「アプリを終了」で完全に終了します。保守画面からアンインストールすると、このインストール先の自動起動登録も解除します。</p>
+    <figure><div class="shot"><img src="images/guide-maintenance.svg" width="880" alt="同じ版が入っている場合の修復とアンインストールの説明図。" loading="lazy"></div><figcaption class="caption">同じ版が入っている場合の保守項目の説明図。<a href="images/guide-maintenance.svg">図を大きく開く</a></figcaption></figure>
+    <h3>アプリを削除する</h3>
+    <p>アプリを終了し、保守画面で「アンインストール」を選びます。削除するフォルダーを確認して進めると、アプリと、そのフォルダー内に保存した設定・実行環境・モデル・出力を削除します。必要な録音や結果は、先に別のフォルダーへ退避してください。</p>
+    <p class="note warning"><strong>フォルダーを手動で削除する場合</strong>アプリの実体はインストール先フォルダーにまとまっています。ただし、登録したプログラム一覧やショートカットの項目がWindows側に残ることがあります。これらも片付けるには、保守画面からアンインストールしてください。ドキュメントなどインストール先の外に保存した録音・結果・ログ、旧版がユーザーフォルダーへ保存した設定は、そのまま残ります。</p>
+    <p class="muted">既存のWindowsユーザー環境変数<code>HF_TOKEN</code>や、他のアプリとも共有する外部モデルキャッシュは削除しません。不要になった認証情報の解除は、Windows側で別途行ってください。</p>
+    <details><summary>更新の検証・公開範囲について</summary><p>更新の取得先はGitHubの公開リリースを想定しています。非公開リポジトリのままでは取得できない場合があります。更新のために個人のGitHubトークンをアプリへ埋め込むことはありません。</p><p>取得先、ファイルの種類・大きさ、ハッシュ値と配布元の証明を検査し、検証に成功した更新だけを実行します。認識した文章や録音を更新確認へ送ることはありません。検証で停止した場合は、表示された理由を確認してください。</p></details>
+  </section>
+
+  <section class="section" id="help">
+    <div class="section-title"><span class="step-no">10</span><h2>困ったときは、ここから</h2></div>
+    <div class="cards" id="stop"><article class="card"><span class="tag">録音を終える</span><h3>「停止」</h3><p>録音・録画を保存し、設定された終了後の認識へ進みます。録音だけを終了して全文の認識を完成させたいときに使います。</p></article><article class="card"><span class="tag">処理をすべて中断</span><h3>TOPの「すべて停止」</h3><p>待機中の認識、全文解析、結合、変換、監視、セットアップなどを中断します。終了処理が完了するまで待ってから次の操作へ進みます。</p></article></div>
+    <div class="table-wrap"><table><thead><tr><th>症状</th><th>最初に確認すること</th></tr></thead><tbody><tr><td>「未セットアップ」と出る</td><td>使う認識方式の環境を導入し、その方式に対応するモデルを選んでください。録音環境と音声認識環境は別です。</td></tr><tr><td>ドラッグ＆ドロップできない</td><td>「ファイルを追加…」で代用できます。「設定・診断 → サポート → D&amp;D 診断・修復…」も確認してください。</td></tr><tr><td>録音できない・音が入らない</td><td>デバイスを更新して入力テストを実行します。Windowsのマイクのアクセス許可や、PC音の再生先を確認してください。</td></tr><tr><td>ライブ認識が遅れる</td><td>文字起こしが録音より遅れると未処理区間がたまります。録音のみ＋停止後の認識へ変えるか、モデルとCPU/GPUを見直してください。</td></tr><tr><td>保存先がわからない</td><td>完了したキューをダブルクリックして「結果の保存先を開く」。アプリ内の標準フォルダーも確認できます。</td></tr><tr><td>設定の読み込み後に録音できない</td><td>移行先のPCで録音デバイスを選び直します。AIモデル・実行環境が未導入ならセットアップしてください。</td></tr><tr><td>更新できない</td><td>ネット接続、公開リリースの有無、検証エラーを確認します。失敗した更新は実行されません。通常の録音・文字起こしはそのまま使えます。</td></tr></tbody></table></div>
+    <p>原因を調べたいときは、右側の詳細ログを確認します。「設定・診断 → ログ」から、ログフォルダーを開く／別ウィンドウで見る／ZIPへ保存する操作を選べます。通常はドキュメント内の<code>UnifiedTranscriber/Logs</code>です。</p>
+    <p>一括セットアップでは、pipなどの子処理の詳細も表示・記録します。アプリ内から実行した場合は<code>session_*.log</code>、本体のセットアップ中なら<code>setup_*.log</code>で最初のエラーを確認してください。FFmpegの一時的なアクセス拒否は再試行します。拒否が続く場合は他の録音・変換を終了し、表示されたフォルダーの書き込み権限を確認します。</p>
+    <p class="note warning">ログにはファイルパス、デバイス名、認識結果が含まれる場合があります。誰かへ共有する前に内容を確認してください。</p>
+    <div class="inline-links"><a href="USAGE.md">テキスト版の操作ガイド</a><a href="PRIVACY.md">設定・データの取り扱い</a><a href="VALIDATION.md">検証範囲</a><a href="PACKAGING.md">配布形式と警告</a><a href="CHANGELOG.md">リリース情報</a><a href="#">先頭へ戻る</a></div>
+  </section>
+  <footer class="footer">文字起こし統合スタジオ v1.0.0 · 画面例は開発中の表示を含みます。追加項目は本文を参照してください。実際のアプリに架空のサンプルを表示しています。画面サイズや表示モードにより、配置や見える範囲が変わります。AIによる認識・話者分離は推定のため、必要に応じて原音と照合してください。</footer>
+</main>
+</div>
+</body>
+</html>

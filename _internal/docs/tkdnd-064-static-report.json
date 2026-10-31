@@ -1,0 +1,117 @@
+{
+  "artifact": {
+    "source": "Pinned wheel extracted from a previous test build and compared with upstream",
+    "wheel": "_internal/tkinterdnd2-0.6.4-py3-none-any.whl",
+    "wheel_sha256": "4b11e0ac6febd8609faf154851d782eca4068bfa68a88ca3d3dded8294367f80",
+    "upstream_commit": "52e9879a174dfee147f10126c0ff807e65c43aa5"
+  },
+  "files": [
+    {
+      "path": "tkinterdnd2/tkdnd/linux-arm64/libtkdnd2.10.3.so",
+      "bytes": 77032,
+      "sha256": "64f159eb4071b5cd33fcfb609332478e2e65c819abce803d8be85338959ce31f",
+      "upstream_git_blob_sha1": "1d2d8f6d12e8ebffb9c01a39daf4394b11e6310a",
+      "matches_upstream": true
+    },
+    {
+      "path": "tkinterdnd2/tkdnd/linux-arm64-tcl9/libtcl9tkdnd2.10.3.so",
+      "bytes": 76992,
+      "sha256": "22505982c4b173e969221932613bb2939666cf0a7d56b675860d330ea9caefc9",
+      "upstream_git_blob_sha1": "523716260a07b1cfcc5fff814263d990eb89b131",
+      "matches_upstream": true
+    },
+    {
+      "path": "tkinterdnd2/tkdnd/linux-x64/libtkdnd2.10.3.so",
+      "bytes": 59296,
+      "sha256": "b06860716efe360c1f5ea6a9474aedce8c9370c7b380c93fd06c2f7044bae3a3",
+      "upstream_git_blob_sha1": "00b7ffdc7061f514e2861b887a4301c8c0425a39",
+      "matches_upstream": true
+    },
+    {
+      "path": "tkinterdnd2/tkdnd/linux-x64-tcl9/libtcl9tkdnd2.10.3.so",
+      "bytes": 63376,
+      "sha256": "6b86d6236b7689cec8354611800ca7f77b93547f275bbd6653034edddcccb35e",
+      "upstream_git_blob_sha1": "e1fde7409665b16911d69aa7e15e3df5a1a75939",
+      "matches_upstream": true
+    },
+    {
+      "path": "tkinterdnd2/tkdnd/osx-arm64/libtkdnd2.10.3.dylib",
+      "bytes": 76520,
+      "sha256": "474d26c686a97efdf51dbdf1da4e90421f0c4b63d9022741c872e70f5033b735",
+      "upstream_git_blob_sha1": "978c8cac76c64a703395f8d0c7eff53dbc8a702d",
+      "matches_upstream": true
+    },
+    {
+      "path": "tkinterdnd2/tkdnd/osx-arm64-tcl9/libtcl9tkdnd2.10.3.dylib",
+      "bytes": 76584,
+      "sha256": "6629cce146235817a19b0bfb2ecad8b12d307f56576d39b7b1f5b753073e20a9",
+      "upstream_git_blob_sha1": "00775506c5b897c0c5dfa16d4fd38c088850214e",
+      "matches_upstream": true
+    },
+    {
+      "path": "tkinterdnd2/tkdnd/osx-x64/libtkdnd2.9.4.dylib",
+      "bytes": 31868,
+      "sha256": "6e4f4fb171fde00d779cd69196b21c7ca12d0e2f9497ef1cc8f76050f2b4f2f6",
+      "upstream_git_blob_sha1": "6755b6e898ee2cda54841d78563519a0a15b18bd",
+      "matches_upstream": true
+    },
+    {
+      "path": "tkinterdnd2/tkdnd/win-arm64/libtkdnd2.10.3.dll",
+      "bytes": 145408,
+      "sha256": "388a3eaba0cda2fec8e2d41387d7d578cd0799bed55ebbc7191ba22346ec3caa",
+      "upstream_git_blob_sha1": "bdf655ee643013831c7852480628b93ad2e4bb19",
+      "matches_upstream": true
+    },
+    {
+      "path": "tkinterdnd2/tkdnd/win-x64/libtkdnd2.10.3.dll",
+      "bytes": 153600,
+      "sha256": "d04d033efb45cf683b04ebe23b383bf2ea743891e2a6474a957b41da9b496f30",
+      "upstream_git_blob_sha1": "3ce7190f2e8b2577404ebcb6c4e977bc868ce195",
+      "matches_upstream": true
+    },
+    {
+      "path": "tkinterdnd2/tkdnd/win-x64-tcl9/libtkdnd2.10.3.dll",
+      "bytes": 154624,
+      "sha256": "22dc45335018f291b98620d9d7fb2c398139306f555ce29a5032d275ca5de38a",
+      "upstream_git_blob_sha1": "b41b845079437901b243bfeb37ab43702ac8a4a6",
+      "matches_upstream": true
+    },
+    {
+      "path": "tkinterdnd2/tkdnd/win-x86/libtkdnd2.10.3.dll",
+      "bytes": 116224,
+      "sha256": "a67d81a6072b816c97660b0b3954f9b71d2d5c902038fa1bc9f52d05447fec56",
+      "upstream_git_blob_sha1": "e80c2dfddc399dc26e1b6df0e5234661d2f23964",
+      "matches_upstream": true
+    },
+    {
+      "path": "tkinterdnd2/tkdnd/win-x86-tcl9/libtkdnd2.10.3.dll",
+      "bytes": 117248,
+      "sha256": "8b6092b4abbd5c6ee5cbb33fe54d26308e11b9220c7414ceaba2d79edb820eb5",
+      "upstream_git_blob_sha1": "ec10bf0d0f3f8c08b906c1e11bee849e525ad396",
+      "matches_upstream": true
+    }
+  ],
+  "all_12_native_files_match_upstream": true,
+  "defender": {
+    "status": "clean",
+    "artifacts_unchanged": true,
+    "scan_targets": [
+      "setup exe",
+      "payload directory"
+    ],
+    "individual_native_files_confirmed_scanned": false
+  },
+  "reversinglabs": {
+    "wheel_page": "https://secure.software/pypi/packages/tkinterdnd2",
+    "wheel_claim": "search cached page reports 4 flagged components; individual names/hashes not accessible",
+    "sdist_page": "https://secure.software/pypi/packages/tkinterdnd2/0.6.4/tkinterdnd2-0.6.4.tar.gz",
+    "sdist_claim": "search cached page describes SQ30108 machine-learning detection; sdist is a different artifact from the wheel",
+    "current_vendor_report_checked": false
+  },
+  "limits": [
+    "No installer, wheel, Python package, native binary or model was executed.",
+    "No user file or vendor binary was uploaded to third parties.",
+    "A matching upstream source or PyPI checksum does not prove the binary safe.",
+    "The four flagged component names and their hashes remain unverified."
+  ]
+}

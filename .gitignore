@@ -1,0 +1,58 @@
+# Local settings and authentication
+settings.json
+transcriber-settings*.json
+_internal/settings.json
+_internal/hf_token.txt
+.env
+.env.*
+!.env.example
+
+# Python runtime, dependencies and models
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+_internal/environments/
+_internal/gui_dependencies/
+Models/
+models/
+.cache/
+
+# User media and generated output
+Transcriptions/
+Recordings/
+Merged/
+SpeakerEdits/
+Logs/
+logs/
+_old/
+*.log
+_internal/.*.flag
+_internal/.gpu_pacing_*.json
+
+# OS and editor files
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# Local authentication caches and test output
+stored_tokens
+.huggingface/
+coverage.xml
+.coverage
+
+# Installed portable application data and generated Windows builds
+Data/
+Runtime/
+installation.json
+portable.json
+UnifiedTranscriber.exe
+UnifiedTranscriberSetup.exe
+build/
+dist/
+*.spec
+_internal/update-verifier/
+_internal/release-payload.zip
+_internal/source-update.zip

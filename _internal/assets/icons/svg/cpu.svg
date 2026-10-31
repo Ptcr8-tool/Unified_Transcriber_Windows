@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+<rect x="6" y="6" width="12" height="12" rx="1"/>
+<rect x="9" y="9" width="6" height="6" rx="1"/>
+<polyline points="9.000,2.000 9.000,6.000"/>
+<polyline points="15.000,2.000 15.000,6.000"/>
+<polyline points="9.000,18.000 9.000,22.000"/>
+<polyline points="15.000,18.000 15.000,22.000"/>
+<polyline points="2.000,9.000 6.000,9.000"/>
+<polyline points="2.000,15.000 6.000,15.000"/>
+<polyline points="18.000,9.000 22.000,9.000"/>
+<polyline points="18.000,15.000 22.000,15.000"/>
+</svg>

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "github_cli": {
+    "version": "2.103.3",
+    "url": "https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_windows_amd64.zip",
+    "sha256": "98d0cfa794721665d7973dd728c78aff7bd836d58f10f6d7a03568eccb0a22e0",
+    "max_bytes": 30000000
+  },
+  "drag_drop": {
+    "filename": "tkinterdnd2-0.6.4-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/73/a6/72313c930c923406bd55fd7d389f6fcab2064ccd76be3590ef9d584cf2cf/tkinterdnd2-0.6.4-py3-none-any.whl",
+    "sha256": "4b11e0ac6febd8609faf154851d782eca4068bfa68a88ca3d3dded8294367f80",
+    "max_bytes": 6000000
+  }
+}

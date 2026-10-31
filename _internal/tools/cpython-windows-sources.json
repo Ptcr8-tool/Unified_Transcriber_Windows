@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "cpython": {
+    "version": "3.11.18",
+    "url": "https://www.python.org/ftp/python/3.11.18/Python-3.11.18.tgz",
+    "sha256": "5f62711b12470fd435f83f1451c1b1ef4a179aebc715c716874b0967567d814e",
+    "max_bytes": 40000000,
+    "checksum_source": "https://www.python.org/downloads/release/python-31118/"
+  },
+  "dependencies": [
+    {
+      "name": "openssl",
+      "repository": "cpython-bin-deps",
+      "commit": "ddb46a415b4995440723183e644f8d2c346567a2",
+      "url": "https://codeload.github.com/python/cpython-bin-deps/zip/ddb46a415b4995440723183e644f8d2c346567a2",
+      "sha256": "0dbf56dcce0ab4054e6192ae488d7d439f678cceca858810de990be51bb80335",
+      "max_bytes": 80000000,
+      "version": "3.5.9"
+    },
+    {
+      "name": "libffi",
+      "repository": "cpython-bin-deps",
+      "commit": "94cb9a1c7feb608adf2b9f8fe2dbd6925ffbf90d",
+      "url": "https://codeload.github.com/python/cpython-bin-deps/zip/94cb9a1c7feb608adf2b9f8fe2dbd6925ffbf90d",
+      "sha256": "6b0f53490e0dd958708bff32df689cf2163c214147fcb8edb76a403fa6a877ca",
+      "max_bytes": 80000000,
+      "version": "3.4.4"
+    },
+    {
+      "name": "sqlite",
+      "repository": "cpython-source-deps",
+      "commit": "f048e6a40879da9828ca2cf3b260f3e0a26117fb",
+      "url": "https://codeload.github.com/python/cpython-source-deps/zip/f048e6a40879da9828ca2cf3b260f3e0a26117fb",
+      "sha256": "0c604ef459fad52cac8a6b0782a6dd4799bca5680053a99aa531d491f588ae3e",
+      "max_bytes": 80000000,
+      "version": "3.53.4.0",
+      "directory": "sqlite-3.53.4.0"
+    },
+    {
+      "name": "bzip2",
+      "repository": "cpython-source-deps",
+      "commit": "05301997b2f9590f49c672cf3dfd3d3dfa7ad521",
+      "url": "https://codeload.github.com/python/cpython-source-deps/zip/05301997b2f9590f49c672cf3dfd3d3dfa7ad521",
+      "sha256": "44b15bede52b32f8673a2976621a847258b041243c003e30f4d9a05214785fe5",
+      "max_bytes": 80000000,
+      "version": "1.0.8"
+    },
+    {
+      "name": "zlib",
+      "repository": "madler/zlib",
+      "commit": "da607da739fa6047df13e66a2af6b8bec7c2a498",
+      "url": "https://codeload.github.com/madler/zlib/zip/da607da739fa6047df13e66a2af6b8bec7c2a498",
+      "sha256": "21de001766abb1f5bfdfb3c23aa42d30a6bbd7eddd37131d5e7fe89c5ec068f8",
+      "max_bytes": 80000000,
+      "version": "1.3.2"
+    },
+    {
+      "name": "xz-build-config",
+      "repository": "cpython-source-deps",
+      "commit": "665d407bd6bc941944db2152e4b5dca388ea586e",
+      "url": "https://codeload.github.com/python/cpython-source-deps/zip/665d407bd6bc941944db2152e4b5dca388ea586e",
+      "sha256": "bd14886d610392aeb2c7a81677b5e4d85c9e2c88ed8d14588426f3cc34e17f50",
+      "max_bytes": 80000000,
+      "version": "5.8.1.1",
+      "purpose": "Only windows/config.h for the current XZ source build; no old XZ C files are compiled"
+    },
+    {
+      "name": "xz",
+      "version": "5.8.4",
+      "repository": "tukaani-project/xz",
+      "url": "https://github.com/tukaani-project/xz/releases/download/v5.8.4/xz-5.8.4.tar.gz",
+      "sha256": "0014c7886930454fe8bd4228665b51af55eeae560ea135c9c4cd33f55b2591d9",
+      "max_bytes": 6000000,
+      "format": "tar.gz",
+      "checksum_source": "https://api.github.com/repos/tukaani-project/xz/releases/tags/v5.8.4"
+    },
+    {
+      "name": "tcl",
+      "version": "8.6.18",
+      "commit": "515167c897a7c8066abfbd71e8fe7bd8bf3569de",
+      "url": "https://codeload.github.com/tcltk/tcl/zip/515167c897a7c8066abfbd71e8fe7bd8bf3569de",
+      "sha256": "ac441a56e5f4d9c8f60b5563411a50a89647baaefe022790145f9ba8a52d3ac3",
+      "bundled_zlib": "1.3.2",
+      "repository": "tcltk/tcl",
+      "max_bytes": 20000000,
+      "bundled_binary": "Official upstream compat/zlib/win32 and win64 zlib1.dll version1.3.2, authenticated by the pinned source archive"
+    },
+    {
+      "name": "tk",
+      "version": "8.6.18",
+      "commit": "6dbe68819aac4a22f6f7a143133ce26c5e8d2b05",
+      "url": "https://codeload.github.com/tcltk/tk/zip/6dbe68819aac4a22f6f7a143133ce26c5e8d2b05",
+      "sha256": "dff3cdb8bb0ac1e49c79bcdec035fcbf94b27559a034e83bcff8a7430771eef7",
+      "repository": "tcltk/tk",
+      "max_bytes": 20000000
+    }
+  ],
+  "bootstrap_wheels": [
+    {
+      "name": "pip",
+      "version": "26.2.2",
+      "filename": "pip-26.2.2-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl",
+      "sha256": "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70",
+      "max_bytes": 3000000
+    },
+    {
+      "name": "setuptools",
+      "version": "84.2.1",
+      "filename": "setuptools-84.2.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl",
+      "sha256": "ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2",
+      "max_bytes": 2000000
+    }
+  ]
+}

@@ -72,7 +72,7 @@ class TransferGUI(fixtures.StudioGUIFixture):
         source=self.folder/'sample.txt';source.write_text('[00:00:01] SPEAKER_00: 発言\n')
         dialog=a.open_speaker_editor(source);self.root.update()
         dialog.output.set(str(self.folder/'custom.txt'));button(dialog.win,'デフォルト').invoke()
-        self.assertEqual(Path(dialog.output.get()),core.default_directory('speaker_edits')/'custom.txt')
+        self.assertEqual(Path(dialog.output.get()),source.parent/'custom.txt')
         dialog.win.destroy()
 
     def test_export_opt_in_controls_token_and_import_updates_current_gui_preserving_queue(self):

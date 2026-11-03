@@ -2,12 +2,12 @@ from __future__ import annotations
 try:
     from .caption_segments import split_timed_items
     from .media_runtime import checked_ffmpeg
-    from .worker_io import extract_pcm_audio, write_transcript_atomic
+    from .worker_io import extract_pcm_audio, write_transcript_atomic, transcript_separator
     from .asr_hints import options_for as asr_hint_options
 except ImportError:  # standalone Python invocation from the engines directory
     from caption_segments import split_timed_items
     from media_runtime import checked_ffmpeg
-    from worker_io import extract_pcm_audio, write_transcript_atomic
+    from worker_io import extract_pcm_audio, write_transcript_atomic, transcript_separator
     from asr_hints import options_for as asr_hint_options
 
 import argparse
@@ -323,7 +323,8 @@ def transcribe(media_path: Path, output_path: Path, model_size: str, language: s
                max_speakers: int, threshold: float, speakers: int | None,
                overwrite: bool = False, device_choice: str = "auto",
                diarization_unit: str = "utterance", segment_length: float = 20.,
-               caption_max_chars=None, caption_max_seconds=5.0) -> None:
+               caption_max_chars=None, caption_max_seconds=5.0, blank_lines: int = 0) -> None:
+    separator = transcript_separator(blank_lines)
     if not media_path.is_file():
         raise FileNotFoundError(f"入力ファイルが見つかりません: {media_path}")
     if media_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
@@ -340,7 +341,7 @@ def transcribe(media_path: Path, output_path: Path, model_size: str, language: s
     if not lines:
         raise RuntimeError("出力できる文字起こし行がありませんでした。")
 
-    write_transcript_atomic(output_path, "\n".join(lines) + "\n", overwrite=overwrite)
+    write_transcript_atomic(output_path, separator.join(lines) + "\n", overwrite=overwrite)
     print(f"文字起こし結果を保存しました: {output_path}")
 
 
@@ -476,7 +477,8 @@ def watch_folder(args: argparse.Namespace) -> None:
                            args.max_speakers, args.threshold, args.speakers,
                            overwrite=True, device_choice=args.device,
                            diarization_unit=args.diarization_unit, segment_length=args.segment_length,
-                   caption_max_chars=args.caption_max_chars, caption_max_seconds=args.caption_max_seconds)
+                   caption_max_chars=args.caption_max_chars, caption_max_seconds=args.caption_max_seconds,
+                   blank_lines=getattr(args, "blank_lines", 0))
                 transcription_finished = True
                 move_file_no_overwrite(media_path, destination_media)
                 media_moved = True
@@ -536,6 +538,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--diarization-unit', choices=('utterance', 'fixed'), default='utterance',
                         help='話者特徴量の抽出単位: Whisper発話区間 / 固定秒数')
     parser.add_argument('--segment-length', type=float, default=20., help='固定長話者分離の秒数')
+    parser.add_argument("--blank-lines", type=int, choices=range(11), default=0,
+                        help="TXTの発話間に入れる空行数（0〜10、既定0）")
     parser.add_argument("--caption-max-chars", type=int, default=None)
     parser.add_argument("--caption-max-seconds", type=float, default=5.0)
     parser.add_argument("--overwrite", action="store_true", help="既存の出力TXTを上書きする")
@@ -566,7 +570,8 @@ def main() -> int:
                    args.max_speakers, args.threshold, args.speakers,
                    args.overwrite, device_choice=args.device,
                    diarization_unit=args.diarization_unit, segment_length=args.segment_length,
-                   caption_max_chars=args.caption_max_chars, caption_max_seconds=args.caption_max_seconds)
+                   caption_max_chars=args.caption_max_chars, caption_max_seconds=args.caption_max_seconds,
+                   blank_lines=getattr(args, "blank_lines", 0))
         return 0
     except Exception as exc:
         print(f"エラー: {exc}", file=sys.stderr)

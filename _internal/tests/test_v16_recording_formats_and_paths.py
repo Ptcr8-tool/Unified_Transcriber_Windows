@@ -21,7 +21,7 @@ from engines import segment_resemblyzer
 class DefaultOutputs(unittest.TestCase):
     def test_subfolders_under_documents_output_root(self):
         for kind, folder in (('recordings', 'Recordings'), ('transcriptions', 'Transcriptions'),
-                             ('merged', 'Merged'), ('speaker_edits', 'SpeakerEdits')):
+                             ('merged', 'Merged')):
             self.assertEqual(default_directory(kind, Config()), default_output_root() / folder)
         self.assertEqual(choose_output(Path('sample.m4a'), Config()),
                          default_output_root() / 'Transcriptions' / 'sample.txt')

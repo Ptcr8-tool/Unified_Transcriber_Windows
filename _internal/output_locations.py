@@ -20,7 +20,6 @@ OUTPUT_FOLDERS = {
     'recordings': 'Recordings',
     'transcriptions': 'Transcriptions',
     'merged': 'Merged',
-    'speaker_edits': 'SpeakerEdits',
     'logs': 'Logs',
     'exports': 'Exports',
 }

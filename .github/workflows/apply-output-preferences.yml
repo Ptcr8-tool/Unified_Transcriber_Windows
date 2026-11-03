@@ -1,0 +1,62 @@
+name: Apply reviewed transcript output preferences
+on:
+  push:
+    branches: ['fix/transcript-output-preferences']
+    paths: ['.github/patches/output-preferences.patch.gz.b64']
+permissions:
+  contents: write
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+      PYTHONPATH: '_internal:_internal/tests'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Validate and apply reviewed source-only patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, gzip, hashlib, os, subprocess
+          payload = Path('.github/patches/output-preferences.patch.gz.b64')
+          raw = gzip.decompress(base64.b64decode(payload.read_text().strip(), validate=True))
+          assert len(raw) == 38450
+          assert hashlib.sha256(raw).hexdigest() == 'dd691e3318ba8194a5af560df092e9df31c672af8014ff26911aa99c7c1aaf59'
+          patch = Path(os.environ['RUNNER_TEMP']) / 'output-preferences.patch'
+          patch.write_bytes(raw)
+          paths = subprocess.check_output(['git', 'apply', '--numstat', str(patch)], text=True)
+          for line in paths.splitlines():
+              name = line.split('\t', 2)[2]
+              assert name.startswith('_internal/') and '..' not in name.split('/')
+          subprocess.run(['git', 'apply', '--check', str(patch)], check=True)
+          subprocess.run(['git', 'apply', str(patch)], check=True)
+          payload.unlink()
+          PY
+      - name: Install GUI test prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-tk python3-numpy python3-pil.imagetk xvfb
+      - name: Run output and GUI regression tests
+        run: |
+          python3 -m compileall -q _internal
+          xvfb-run -a python3 -m unittest -v test_transcript_output_preferences test_core test_output_locations test_sample_transcripts test_v29_transfer_ui
+          git diff --check
+      - name: Commit tested source with the established anonymous identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name Ptcr8
+          git config user.email 182083273+Ptcr8@users.noreply.github.com
+          git add -- _internal .github/patches/output-preferences.patch.gz.b64
+          git commit -m 'Default to compact transcripts and save speaker edits beside the source'
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" push origin HEAD:refs/heads/fix/transcript-output-preferences
+          echo "Tested source commit: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"

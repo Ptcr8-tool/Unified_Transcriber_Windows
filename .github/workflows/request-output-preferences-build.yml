@@ -1,0 +1,57 @@
+name: Request updated transcript installer
+on:
+  push:
+    branches: ['build/output-preferences-v1.0.1']
+    paths: ['.github/workflows/request-output-preferences-build.yml']
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: request-output-preferences-build
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set a distinct version without changing the published release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 2fd6b3dac473415f6dc2317abf73ca811245775d HEAD
+          python3 - <<'PY'
+          from pathlib import Path
+          version = Path('VERSION')
+          core = Path('_internal/core.py')
+          current = version.read_text(encoding='utf-8').strip()
+          assert current in ('1.0.0', '1.0.1'), current
+          source = core.read_text(encoding='utf-8')
+          before = "APP_VERSION = '" + current + "'"
+          assert source.count(before) == 1
+          core.write_text(source.replace(before, "APP_VERSION = '1.0.1'"), encoding='utf-8')
+          version.write_text('1.0.1\n', encoding='utf-8')
+          assert Path('_internal/tests/test_transcript_output_preferences.py').is_file()
+          PY
+          git diff --check
+      - name: Commit version and start the complete Windows validation build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name Ptcr8
+          git config user.email 182083273+Ptcr8@users.noreply.github.com
+          git add -- VERSION _internal/core.py
+          if ! git diff --cached --quiet; then
+            git commit -m 'Set v1.0.1 for the compact transcript and adjacent speaker-edit installer'
+            AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+            echo "::add-mask::$AUTH"
+            git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" push origin HEAD:refs/heads/build/output-preferences-v1.0.1
+          fi
+          gh workflow run windows-release.yml --repo "$GITHUB_REPOSITORY" --ref build/output-preferences-v1.0.1 --field publish_release=false
+          echo "Source commit: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Windows test/build/smoke/Defender checks requested; no public release or tag is modified.' >> "$GITHUB_STEP_SUMMARY"

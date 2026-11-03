@@ -156,6 +156,7 @@ class Config:
     filename_diarization: bool = False
     filename_media_creation: bool = False
     txt_metadata_header: bool = True
+    txt_blank_lines: int = 0  # blank lines between newly generated TXT utterances
     caption_split: bool = False  # shorten utterances for auto-subtitle editing
     caption_max_chars: int = 28
     caption_max_seconds: float = 5.0
@@ -262,6 +263,8 @@ class Config:
         for key in ('filename_timestamp', 'filename_model', 'filename_backend', 'filename_diarization', 'filename_media_creation', 'txt_metadata_header'):
             if not isinstance(getattr(self, key), bool):
                 raise ValueError('出力ファイル名のオプション設定を確認してください。')
+        if not 0 <= self.txt_blank_lines <= 10:
+            raise ValueError('発話間の空行は0〜10行で指定してください。')
         if not isinstance(self.caption_split, bool) or not 8 <= self.caption_max_chars <= 120 or not 1 <= self.caption_max_seconds <= 30:
             raise ValueError('字幕向け分割は最大8〜120文字、1〜30秒で設定してください。')
         for pct in (self.cpu_limit_percent, self.gpu_soft_percent):
@@ -447,6 +450,7 @@ def build_command(source: Path, destination: Path, config: Config, python: Path,
             args += ['--qwen-model', config.qwen_model.strip(),
                      '--qwen-aligner', config.qwen_aligner.strip(),
                      '--qwen-max-new-tokens', str(config.qwen_max_tokens)]
+    args += ['--blank-lines', str(config.txt_blank_lines)]
     if config.caption_split:
         args += ['--caption-max-chars', str(config.caption_max_chars),
                  '--caption-max-seconds', str(config.caption_max_seconds)]

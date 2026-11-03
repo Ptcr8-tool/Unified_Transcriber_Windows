@@ -126,7 +126,7 @@ def main():
             '[00:00:10] SPEAKER_00: 次の項目に進みます。\n', encoding='utf-8')
         dialog = gui.SpeakerEditDialog(app, sample)
         dialog.input.set('C:/Sample/Transcriptions/sample_meeting.txt')
-        dialog.output.set('C:/Sample/SpeakerEdits/sample_meeting_names.txt')
+        dialog.output.set('C:/Sample/sample_meeting_names.txt')
         for speaker, variable in dialog.rename_vars.items():
             variable.set('話者A' if speaker == 'SPEAKER_00' else '話者B')
         dialog._expand_all()

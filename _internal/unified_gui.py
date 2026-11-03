@@ -390,6 +390,7 @@ class SettingsDialog:
                         'filename_media_creation','txt_metadata_header')
         }
         self.output_preview = tk.StringVar(self.win)
+        self.txt_blank_lines = tk.StringVar(self.win, str(self.cfg.txt_blank_lines))
         self.caption_split = tk.BooleanVar(self.win, self.cfg.caption_split)
         self.caption_max_chars = tk.StringVar(self.win, str(self.cfg.caption_max_chars))
         self.caption_max_seconds = tk.StringVar(self.win, str(self.cfg.caption_max_seconds))
@@ -579,6 +580,18 @@ class SettingsDialog:
 
         for child in tab.winfo_children():
             layout = child.grid_info()
+            if layout and int(layout['row']) >= 4:
+                child.grid_configure(row=int(layout['row'])+2)
+        ttk.Label(tab,text='TXTの発話間の空行数').grid(row=4,column=0,sticky='w',pady=(12,4))
+        ttk.Spinbox(tab,textvariable=self.txt_blank_lines,from_=0,to=10,width=7).grid(
+            row=4,column=1,sticky='w',pady=(12,4))
+        ttk.Label(tab,text='0＝空行なし（既定）／1＝発話間に1行。ライブTXTにも適用します。'
+                  '既存ファイルやCSVの構造は変更しません。',
+                  foreground='#596477',wraplength=630).grid(
+            row=5,column=0,columnspan=2,sticky='w',pady=(0,10))
+
+        for child in tab.winfo_children():
+            layout = child.grid_info()
             if layout:
                 child.grid_configure(row=int(layout['row'])+2)
         setup_output_folder(tab, self.output_root, width=610).grid(
@@ -675,6 +688,7 @@ class SettingsDialog:
                     '' if kwargs['output_dir']==DEFAULT_LOCATION else kwargs['output_dir']),
                 'cpu_limit_percent': self.app.config.cpu_limit_percent,
                 'gpu_soft_percent': self.app.config.gpu_soft_percent,
+                'txt_blank_lines': int(self.txt_blank_lines.get()),
                 'caption_split': self.caption_split.get(),
                 'caption_max_chars': int(self.caption_max_chars.get()),
                 'caption_max_seconds': float(self.caption_max_seconds.get()),
@@ -1673,7 +1687,7 @@ class SpeakerEditDialog:
                 self.preview_panels[speaker] = preview
                 self.preview_buttons[speaker] = toggle
             self.loaded_path = path.resolve()
-            self.output.set(str(default_directory('speaker_edits') / (path.stem + '_話者名設定' + path.suffix)))
+            self.output.set(str(path.with_name(path.stem + '_話者名設定' + path.suffix)))
             total = sum(map(len, utterances.values()))
             self.hint.configure(text=f'{len(utterances)}人・{total}件の発話を検出しました。'
                                      '原文とメタデータは変更せず、話者ラベルだけを置換します。')
@@ -1761,15 +1775,13 @@ class SpeakerEditDialog:
         extension = Path(self.input.get()).suffix.lower() or '.txt'
         chosen = filedialog.asksaveasfilename(parent=self.win, defaultextension=extension,
                     filetypes=[('元ファイルと同じ形式', '*' + extension)],
-                    initialdir=str(default_directory('speaker_edits')))
+                    initialdir=str(Path(self.input.get().strip()).expanduser().parent))
         if chosen:
             self.output.set(chosen)
 
     def _default_location(self):
-        if not self.input.get().strip():show_error(self.win,'先に入力ファイルを選択してください。');return
-        source=Path(self.input.get())
-        name=Path(self.output.get()).name if self.output.get() else source.stem+'_話者名設定'+source.suffix
-        self.output.set(str(default_directory('speaker_edits')/name))
+        # Speaker edits belong beside the selected transcript, not a global folder.
+        self._same_input_location()
 
     def _save(self):
         if self.app.busy:
@@ -4090,7 +4102,7 @@ class UnifiedApp:
                 self.events.put(('log',f'[注意] 区間 {index+1} の認識に失敗。元音声は録音ファイルに残っています。\n'))
                 return
             count=append_provisional(text,preview,offset=offset,index=index,
-                                     first=not preview.exists())
+                                     first=not preview.exists(), blank_lines=cfg.txt_blank_lines)
             if not streamed_text:
                 # Older/external engines may save TXT without structured text events.
                 self.events.put(('engine-progress',EngineUpdate('ライブ認識',

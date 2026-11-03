@@ -3,13 +3,13 @@ try:
     from .caption_segments import split_timed_items
     from .media_runtime import checked_ffmpeg
     from .cuda_runtime import initialize_cuda_libraries
-    from .worker_io import extract_pcm_audio, read_pcm_for_whisper, write_transcript_atomic
+    from .worker_io import extract_pcm_audio, read_pcm_for_whisper, write_transcript_atomic, transcript_separator
     from .asr_hints import options_for as asr_hint_options
 except ImportError:  # standalone Python invocation from the engines directory
     from caption_segments import split_timed_items
     from media_runtime import checked_ffmpeg
     from cuda_runtime import initialize_cuda_libraries
-    from worker_io import extract_pcm_audio, read_pcm_for_whisper, write_transcript_atomic
+    from worker_io import extract_pcm_audio, read_pcm_for_whisper, write_transcript_atomic, transcript_separator
     from asr_hints import options_for as asr_hint_options
 
 import argparse
@@ -493,8 +493,8 @@ def merge_items(
     return [item for item in merged if item.text]
 
 
-def render_transcript(items: list[TranscriptItem]) -> str:
-    return "\n\n".join(
+def render_transcript(items: list[TranscriptItem], blank_lines: int = 0) -> str:
+    return transcript_separator(blank_lines).join(
         f"[{format_timestamp(item.start)}] {item.speaker}: {item.text}"
         for item in items
     )
@@ -549,6 +549,8 @@ def parse_args() -> argparse.Namespace:
         default=1.2,
         help="同じ話者の発話を結合する最大間隔・秒 (既定: 1.2)",
     )
+    parser.add_argument("--blank-lines", type=int, choices=range(11), default=0,
+                        help="TXTの発話間に入れる空行数（0〜10、既定0）")
     parser.add_argument("--caption-max-chars", type=int, default=None)
     parser.add_argument("--caption-max-seconds", type=float, default=5.0)
     parser.add_argument(
@@ -620,7 +622,7 @@ def main() -> int:
 
             final_items = merge_items(items, turns, args.merge_gap,
                         caption_max_chars=args.caption_max_chars, caption_max_seconds=args.caption_max_seconds)
-            transcript = render_transcript(final_items)
+            transcript = render_transcript(final_items, getattr(args, "blank_lines", 0))
 
         write_transcript_atomic(output, transcript + ('\n' if transcript else ''))
 

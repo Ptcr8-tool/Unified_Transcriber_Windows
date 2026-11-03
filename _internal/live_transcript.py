@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from transcript_tools import TRANSCRIPT_LINE
 from media_tools import decode_text
+from engines.worker_io import transcript_separator
 
 
 def shift_timestamp(value: str, offset: float) -> str:
@@ -38,15 +39,24 @@ def shifted_lines(source: Path, offset: float) -> list[str]:
 
 
 def append_provisional(source: Path, destination: Path, *, offset: float,
-                       index: int, first: bool = False) -> int:
+                       index: int, first: bool = False, blank_lines: int = 0) -> int:
+    separator = transcript_separator(blank_lines)
     lines=shifted_lines(source, offset)
     destination.parent.mkdir(parents=True, exist_ok=True)
+    previous_utterance = False
+    if not first and lines and destination.is_file():
+        with destination.open('rb') as existing:
+            existing.seek(max(0, destination.stat().st_size - 2))
+            tail = existing.read(2)
+        previous_utterance = tail.endswith(b'\n') and not tail.endswith(b'\n\n')
     with destination.open('a' if not first else 'x', encoding='utf-8-sig' if first else 'utf-8', newline='\n') as out:
         if first:
             out.write('# ライブ文字起こし（暫定）\n')
             out.write('# 区間ごとに推論するため、話者番号は区間をまたいで一致するとは限りません。\n')
             out.write('# 録音停止後の全文再解析で最終版を作れます。\n\n')
-        for line in lines:
-            out.write(line+'\n')
+        if lines:
+            if previous_utterance:
+                out.write('\n' * blank_lines)
+            out.write(separator.join(lines) + '\n')
         out.flush()
     return len(lines)

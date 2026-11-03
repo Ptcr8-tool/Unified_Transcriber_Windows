@@ -10,6 +10,13 @@ import wave
 from pathlib import Path
 
 
+def transcript_separator(blank_lines: int = 0) -> str:
+    """Separate utterances, without touching their text or internal newlines."""
+    if type(blank_lines) is not int or not 0 <= blank_lines <= 10:
+        raise ValueError('発話間の空行は0〜10行で指定してください。')
+    return '\n' * (blank_lines + 1)
+
+
 def read_pcm_for_whisper(path: Path, *, sample_rate: int = 16000):
     """Read our FFmpeg-produced PCM without depending on PyAV's API version.
 

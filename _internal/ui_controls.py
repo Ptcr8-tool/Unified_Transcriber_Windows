@@ -1,4 +1,4 @@
-"""Small standard-Tk controls: switch indicators, inline drawers and OS appearance."""
+"""Small standard-Tk controls: switches, navigation panels and OS appearance."""
 from __future__ import annotations
 
 import math
@@ -111,159 +111,321 @@ class IconThemeToggle(ttk.Frame):
             self._tip = None
 
 
-class AccordionButton(IconMenubutton):
-    """Present an existing Tk menu as an inline, keyboard-accessible action panel."""
-    def __init__(self, master, *, host, max_height=None, on_toggle=None, **kwargs):
-        super().__init__(master, **kwargs)
-        self.host = host
-        self.max_height = max_height
-        self.on_toggle = on_toggle
+class NavigationMenuButton(IconMenubutton):
+    """A nonmodal, anchored menu with a persistent category rail and action list.
+
+    The backing Tk menus still own commands, variables and enabled states. The
+    panel is presentation only, so opening it never moves the working area.
+    """
+    def __init__(self, master, **kwargs):
+        super().__init__(master, takefocus=True, **kwargs)
         self.opened = False
         self.active_group = None
-        self.group_buttons = {}
-        self.action_buttons = {}
-        self._animation = None
-        self.bind('<Button-1>', self.toggle)
-        self.bind('<space>', self.toggle)
-        self.bind('<Return>', self.toggle)
-        self.bind('<Down>', self.toggle)
-        self.bind('<Destroy>', lambda e: self.tk.call('after', 'cancel', self._animation)
-                  if e.widget is self and self._animation else None)
+        self.group_buttons, self.action_buttons = {}, {}
+        self.panel = None
+        self._bindings = []
+        self._focus_job = None
+        for sequence in ('<Button-1>', '<space>', '<Return>', '<Down>'):
+            self.bind(sequence, self.toggle)
+        self.bind('<Destroy>', self._destroyed)
 
     def toggle(self, _event=None):
         if self.instate(['disabled']):
             return 'break'
         if self.opened:
-            self.close()
+            self.close(restore_focus=True)
             return 'break'
-        previous = getattr(self.host, '_drawer_owner', None)
+        root = self.winfo_toplevel()
+        previous = getattr(root, '_navigation_owner', None)
         if previous is not None:
             previous.close()
-        self.host._drawer_owner = self
-        for child in self.host.winfo_children():
-            child.destroy()
+        root._navigation_owner = self
         menu = self.nametowidget(str(self.cget('menu')))
         self.opened = True
-        clip = tk.Canvas(self.host, highlightthickness=0, borderwidth=0)
-        bar = ttk.Scrollbar(self.host, orient='vertical', command=clip.yview)
-        clip.configure(yscrollcommand=bar.set)
-        clip.pack(side='left', fill='both', expand=True)
-        body = ttk.Frame(clip, padding=(10, 7))
-        self._clip,self._bar,self._body=clip,bar,body
-        window_item = clip.create_window((0, 0), window=body, anchor='nw',
-                                         width=max(200, self.host.winfo_width()))
-        clip.bind('<Configure>', lambda e: clip.itemconfigure(window_item, width=e.width))
-        body.bind('<Configure>', lambda _e: clip.configure(scrollregion=clip.bbox('all')))
-        def reveal(event):
-            top=event.widget.winfo_rooty()-body.winfo_rooty()
-            bottom=top+event.widget.winfo_height()
-            visible = clip.canvasy(0)
-            height = max(1, body.winfo_height())
-            if top < visible:
-                clip.yview_moveto(top/height)
-            elif bottom > visible+clip.winfo_height():
-                clip.yview_moveto((bottom-clip.winfo_height())/height)
-        self._reveal=reveal
-        self.group_buttons={};self.action_buttons={}
-        end=menu.index('end')
-        groups=[item for item in range(end+1 if end is not None else 0) if menu.type(item)=='cascade']
-        self._group_menus={}
+        self.state(['selected'])
+        panel = self.panel = tk.Toplevel(root)
+        panel.withdraw()
+        panel.overrideredirect(True)
+        panel.transient(root)
+        panel.title(f'{self.cget("text")} メニュー')
+        panel.bind('<Escape>', lambda _e: self._dismiss())
+        panel.bind('<FocusOut>', self._focus_out)
+        shell = ttk.Frame(panel, style='Card.TFrame', padding=1)
+        shell.pack(fill='both', expand=True)
+        shell.columnconfigure(0, weight=1)
+        shell.rowconfigure(2, weight=1)
+        heading = ttk.Frame(shell, padding=(16, 8))
+        heading.grid(row=0, column=0, sticky='ew')
+        ttk.Label(heading, text=self.cget('text'), style='Section.TLabel').pack(side='left')
+        self.close_button = IconButton(heading, text='閉じる', icon='close',
+            style='Quiet.TButton', command=self._dismiss)
+        self.close_button.bind('<Return>', lambda _e: self._dismiss())
+        self.close_button.pack(side='right')
+        ttk.Label(heading, text='Esc', style='Small.TLabel').pack(side='right', padx=8)
+        ttk.Separator(shell).grid(row=1, column=0, sticky='ew')
+        content = ttk.Frame(shell)
+        content.grid(row=2, column=0, sticky='nsew')
+        content.columnconfigure(2, weight=1)
+        content.rowconfigure(0, weight=1)
+        self._group_menus = {}
+        self.group_buttons, self.action_buttons = {}, {}
+        end = menu.index('end')
+        groups = [i for i in range(end+1 if end is not None else 0) if menu.type(i) == 'cascade']
         if groups:
-            categories=ttk.Frame(body);categories.pack(fill='x',pady=(0,6))
-            for column,item in enumerate(groups):
-                label=menu.entrycget(item,'label')
-                self._group_menus[label]=self.nametowidget(str(menu.entrycget(item,'menu')))
-                categories.columnconfigure(column,weight=1,uniform='category')
-                button=IconButton(categories,text=label,icon=menu.icon_name(item),style='Category.TButton',
-                    command=lambda key=label:self.show_group(key))
-                button.grid(row=0,column=column,sticky='ew',padx=3)
-                button.bind('<FocusIn>',reveal)
-                self.group_buttons[label]=button
-            self._action_area=ttk.Frame(body);self._action_area.pack(fill='x')
-            selected=self.active_group if self.active_group in self._group_menus else next(iter(self._group_menus))
-            self.show_group(selected,resize=False)
+            rail = ttk.Frame(content, padding=(12, 12), style='Navigation.TFrame')
+            rail.grid(row=0, column=0, sticky='ns')
+            ttk.Label(rail, text='カテゴリ', style='Navigation.Caption.TLabel').pack(anchor='w', padx=8, pady=(0, 8))
+            for item in groups:
+                label = menu.entrycget(item, 'label')
+                self._group_menus[label] = self.nametowidget(str(menu.entrycget(item, 'menu')))
+                button = IconButton(rail, text=label, icon=menu.icon_name(item),
+                    style='Category.TButton', command=lambda key=label: self.show_group(key))
+                button.pack(fill='x', pady=2)
+                self._bind_category_keys(button, label)
+                self.group_buttons[label] = button
+            ttk.Separator(content, orient='vertical').grid(row=0, column=1, sticky='ns')
+        right = ttk.Frame(content, padding=(16, 12))
+        right.grid(row=0, column=2, sticky='nsew')
+        right.columnconfigure(0, weight=1)
+        right.rowconfigure(1, weight=1)
+        intro = ttk.Frame(right)
+        intro.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 8))
+        self.location = ttk.Label(intro, style='Small.TLabel')
+        self.location.pack(anchor='w')
+        self.group_title = ttk.Label(intro, style='Section.TLabel')
+        self.group_title.pack(anchor='w', pady=(4, 4))
+        self.group_description = ttk.Label(intro, style='Muted.TLabel', wraplength=400)
+        self.group_description.pack(anchor='w')
+        self._clip = tk.Canvas(right, highlightthickness=0, borderwidth=0, width=400, height=220)
+        self._clip.grid(row=1, column=0, sticky='nsew')
+        self._bar = ttk.Scrollbar(right, orient='vertical', command=self._clip.yview)
+        self._bar.grid(row=1, column=1, sticky='ns', padx=(8, 0))
+        self._clip.configure(yscrollcommand=self._scroll_changed)
+        self._body = self._action_area = ttk.Frame(self._clip)
+        self._window_item = self._clip.create_window((0, 0), window=self._body, anchor='nw')
+        self._clip.bind('<Configure>', self._canvas_resized)
+        self._body.bind('<Configure>', lambda _e: self._clip.configure(scrollregion=self._clip.bbox('all')))
+        panel.bind('<MouseWheel>', self._wheel)
+        panel.bind('<Button-4>', lambda _e: self._scroll(-1))
+        panel.bind('<Button-5>', lambda _e: self._scroll(1))
+        if groups:
+            selected = self.active_group if self.active_group in self._group_menus else next(iter(self._group_menus))
+            self.show_group(selected)
         else:
-            self._action_area=body
+            self.location.configure(text=f'{self.cget("text")} / 操作')
+            self.group_title.configure(text='ファイルの追加方法')
+            self.group_description.configure(text='追加する範囲や、自動で取り込む方法を選びます')
             self._populate_actions(menu)
-        self.host.grid()
-        self._resize_drawer(animate=True)
+        panel.update_idletasks()
+        self._position_panel()
+        panel.deiconify()
+        panel.lift()
+        # Root bindings run only for events in the working window. No grab is
+        # needed: another menu, the queue and other apps remain accessible.
+        for sequence, handler in (('<ButtonPress-1>', self._outside_click),
+                                  ('<Configure>', self._root_changed),
+                                  ('<Unmap>', self._root_changed)):
+            self._bindings.append((root, sequence, root.bind(sequence, handler, add='+')))
+        target = self.group_buttons.get(self.active_group) or self._first_action() or self.close_button
+        target.focus_force()
         return 'break'
 
-    def _populate_actions(self,menu):
-        area=self._action_area
-        end=menu.index('end')
-        items=[item for item in range(end+1 if end is not None else 0) if menu.type(item)!='separator']
-        wide=self.winfo_toplevel().winfo_width()>=1100
-        columns=min(len(items) or 1,3 if wide and len(items)==3 else 2)
-        for col in range(3):area.columnconfigure(col,weight=1 if col<columns else 0,uniform='action' if col<columns else '')
-        self.action_buttons={}
-        for index,item in enumerate(items):
-            label=menu.entrycget(item,'label')
-            if menu.type(item)=='checkbutton':
-                variable=str(menu.entrycget(item,'variable'))
-                command=menu.entrycget(item,'command')
-                widget=ToggleSwitch(area,text=label,variable=variable,
-                    command=lambda cmd=command:menu.tk.call(cmd) if cmd else None)
-                attach_icon(widget,menu.icon_name(item))
+    def _position_panel(self):
+        root = self.winfo_toplevel()
+        scale = max(1, float(self.tk.call('tk', 'scaling')) / 1.333333)
+        gap = round(8 * scale)
+        left, top = root.winfo_rootx()+gap, root.winfo_rooty()+gap
+        # Screenwidth can describe only the primary display on Windows. Anchor
+        # to the working window so menus also fit on a secondary monitor.
+        right = root.winfo_rootx()+root.winfo_width()-gap
+        bottom = root.winfo_rooty()+root.winfo_height()-gap
+        width = min(round(760*scale), max(1, right-left))
+        height = min(round(400*scale), max(1, bottom-top))
+        x = max(left, min(self.winfo_rootx(), right-width))
+        below = self.winfo_rooty()+self.winfo_height()+gap
+        above = self.winfo_rooty()-gap-height
+        y = below if below+height <= bottom else above
+        y = max(top, min(y, bottom-height))
+        self.panel.geometry(f'{width}x{height}+{x}+{y}')
+
+    def _populate_actions(self, menu):
+        end = menu.index('end')
+        self.action_buttons, self.action_descriptions = {}, {}
+        for item in range(end+1 if end is not None else 0):
+            if menu.type(item) == 'separator':
+                continue
+            row = ttk.Frame(self._action_area, padding=(0, 4, 0, 8))
+            row.pack(fill='x')
+            label = menu.entrycget(item, 'label')
+            if menu.type(item) == 'checkbutton':
+                command = menu.entrycget(item, 'command')
+                widget = ToggleSwitch(row, text=label, variable=str(menu.entrycget(item, 'variable')),
+                    command=lambda cmd=command: menu.tk.call(cmd) if cmd else None)
+                attach_icon(widget, menu.icon_name(item))
             else:
-                def invoke(position=item,source=menu):
+                def invoke(position=item, source=menu):
                     self.close()
                     source.invoke(position)
-                widget=IconButton(area,text=label,icon=menu.icon_name(item),command=invoke,style='Drawer.TButton')
-            widget.configure(state=menu.entrycget(item,'state'))
-            widget.grid(row=index//columns,column=index%columns,sticky='ew',padx=3,pady=3)
-            widget.bind('<FocusIn>',self._reveal)
-            self.action_buttons[label]=widget
+                widget = IconButton(row, text=label, icon=menu.icon_name(item),
+                    command=invoke, style='Drawer.TButton')
+            widget.configure(state=menu.entrycget(item, 'state'))
+            widget.pack(fill='x')
+            widget.bind('<Return>', lambda _e, control=widget: (control.invoke(), 'break')[1])
+            widget.bind('<space>', lambda _e, control=widget: (control.invoke(), 'break')[1])
+            help_text = getattr(menu, '_navigation_help', {}).get(item, '')
+            accelerator = menu.entrycget(item, 'accelerator')
+            if accelerator:
+                help_text = f'{help_text}  ({accelerator})' if help_text else accelerator
+            description = ttk.Label(row, text=help_text, style='Small.TLabel', padding=(12, 0), wraplength=400)
+            description.pack(anchor='w', fill='x', pady=(4, 0))
+            description.bind('<Button-1>', lambda _e, control=widget: control.invoke())
+            widget.bind('<FocusIn>', self._reveal)
+            widget.bind('<Left>', lambda _e: self._focus_category())
+            for sequence, offset in (('<Up>', -1), ('<Down>', 1)):
+                widget.bind(sequence, lambda _e, w=widget, step=offset: self._move_action(w, step))
+            self.action_buttons[label] = widget
+            self.action_descriptions[label] = description
 
-    def show_group(self,label,*,resize=True):
-        if label not in self._group_menus:return
-        self.active_group=label
-        for key,button in self.group_buttons.items():
-            button.state(['selected'] if key==label else ['!selected'])
-        for child in self._action_area.winfo_children():child.destroy()
-        self._populate_actions(self._group_menus[label])
-        if resize:self._resize_drawer()
-
-    def _resize_drawer(self,*,animate=False):
-        self.host.update_idletasks()
-        target = max(1, self._body.winfo_reqheight())
-        limit = self.max_height() if callable(self.max_height) else self.max_height
-        if limit is not None and target > limit:
-            target = max(80, int(limit))
-            self._bar.pack(side='right', fill='y')
-        else:self._bar.pack_forget()
-        self._clip.configure(height=target)
-        self._clip.yview_moveto(0)
-        self.host._expanded_height = target
-        self.host.pack_propagate(False)
-        self.host.configure(height=1 if animate else target)
-        if self.on_toggle:
-            self.on_toggle(self)
-        if self._animation is not None:
-            self.after_cancel(self._animation);self._animation=None
-        if not animate:
-            self.host.pack_propagate(True)
+    def show_group(self, label):
+        if label not in self._group_menus:
             return
-        def step_height(step=1):
-            if not self.opened or not self.host.winfo_exists():
-                return
-            self.host.configure(height=max(1, round(target*step/5)))
-            if step < 5:
-                self._animation = self.after(24, lambda: step_height(step+1))
-            else:
-                self.host.pack_propagate(True)
-                self._animation = None
-        step_height()
+        self.active_group = label
+        for key, button in self.group_buttons.items():
+            button.state(['selected'] if key == label else ['!selected'])
+        menu = self._group_menus[label]
+        self.location.configure(text=f'{self.cget("text")} / {label}')
+        self.group_title.configure(text=label)
+        self.group_description.configure(text=getattr(menu, '_navigation_description', '実行する操作を選びます'))
+        for child in self._action_area.winfo_children():
+            child.destroy()
+        self._populate_actions(menu)
+        self._clip.yview_moveto(0)
 
-    def close(self):
+    def _bind_category_keys(self, button, label):
+        for sequence, step in (('<Up>', -1), ('<Down>', 1)):
+            button.bind(sequence, lambda _e, key=label, offset=step: self._move_category(key, offset))
+        button.bind('<Home>', lambda _e: self._select_category(0))
+        button.bind('<End>', lambda _e: self._select_category(-1))
+        button.bind('<Right>', lambda _e: self._focus_actions())
+        button.bind('<Return>', lambda _e: (self.show_group(label), 'break')[1])
+
+    def _select_category(self, index):
+        label = list(self.group_buttons)[index]
+        self.show_group(label)
+        self.group_buttons[label].focus_set()
+        return 'break'
+
+    def _move_category(self, label, step):
+        labels = list(self.group_buttons)
+        return self._select_category((labels.index(label)+step) % len(labels))
+
+    def _first_action(self):
+        return next((b for b in self.action_buttons.values() if not b.instate(['disabled'])), None)
+
+    def _focus_actions(self):
+        target = self._first_action()
+        if target is not None:
+            target.focus_set()
+        return 'break'
+
+    def _focus_category(self):
+        target = self.group_buttons.get(self.active_group)
+        if target is not None:
+            target.focus_set()
+        return 'break'
+
+    def _move_action(self, widget, step):
+        buttons = [b for b in self.action_buttons.values() if not b.instate(['disabled'])]
+        if widget in buttons:
+            buttons[(buttons.index(widget)+step) % len(buttons)].focus_set()
+        return 'break'
+
+    def _canvas_resized(self, event):
+        self._clip.itemconfigure(self._window_item, width=event.width)
+        for description in self.action_descriptions.values():
+            description.configure(wraplength=max(100, event.width-24))
+        self.group_description.configure(wraplength=max(100, event.width))
+
+    def _scroll_changed(self, first, last):
+        self._bar.set(first, last)
+        if float(first) <= 0 and float(last) >= 1:
+            self._bar.state(['disabled'])
+        else:
+            self._bar.state(['!disabled'])
+
+    def _reveal(self, event):
+        row = event.widget.master
+        top = row.winfo_y()
+        bottom = top+row.winfo_height()
+        visible = self._clip.canvasy(0)
+        height = max(1, self._body.winfo_height())
+        if top < visible:
+            self._clip.yview_moveto(top/height)
+        elif bottom > visible+self._clip.winfo_height():
+            self._clip.yview_moveto((bottom-self._clip.winfo_height())/height)
+
+    def _wheel(self, event):
+        if event.delta:
+            return self._scroll(-1 if event.delta > 0 else 1)
+
+    def _scroll(self, units):
+        # Canvas can otherwise scroll short lists past their upper boundary.
+        first, last = self._clip.yview()
+        if (units < 0 and first > 0) or (units > 0 and last < 1):
+            self._clip.yview_scroll(units, 'units')
+        return 'break'
+
+    def _outside_click(self, event):
+        if event.widget is not self:
+            self.close()
+
+    def _root_changed(self, event):
+        if event.widget is self.winfo_toplevel():
+            self.close()
+
+    def _focus_out(self, _event):
+        if not self.opened:
+            return
+        if self._focus_job is not None:
+            self.after_cancel(self._focus_job)
+        self._focus_job = self.after_idle(self._check_focus)
+
+    def _check_focus(self):
+        self._focus_job = None
+        if self.opened:
+            focus = self.focus_get()
+            if focus is None or focus.winfo_toplevel() is not self.panel:
+                self.close()
+
+    def _dismiss(self):
+        self.close(restore_focus=True)
+        return 'break'
+
+    def _destroyed(self, event):
+        if event.widget is self:
+            self.close()
+
+    def close(self, *, restore_focus=False):
+        if not self.opened:
+            return
         self.opened = False
-        if self._animation is not None:
-            self.after_cancel(self._animation)
-            self._animation = None
-        self.host.grid_remove()
-        self.host.pack_propagate(True)
-        if self.on_toggle:
-            self.on_toggle(self)
+        root = self.winfo_toplevel()
+        if getattr(root, '_navigation_owner', None) is self:
+            root._navigation_owner = None
+        if self.winfo_exists():
+            self.state(['!selected'])
+        if self._focus_job is not None:
+            self.after_cancel(self._focus_job)
+            self._focus_job = None
+        for root, sequence, token in self._bindings:
+            root.unbind(sequence, token)
+        self._bindings.clear()
+        panel, self.panel = self.panel, None
+        if panel.winfo_exists():
+            panel.destroy()
+        if restore_focus and self.winfo_exists():
+            self.focus_force()
+
 
 
 def input_folder(source) -> str:

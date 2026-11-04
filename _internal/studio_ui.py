@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import font as tkfont, messagebox, ttk
 import webbrowser
 from ui_icons import IconButton, IconMenu, ACTION_ICONS, set_icon_palette, refresh_icon
-from ui_controls import AccordionButton, ToggleSwitch, IconThemeToggle, install_switch_style, system_is_dark
+from ui_controls import NavigationMenuButton, ToggleSwitch, IconThemeToggle, install_switch_style, system_is_dark
 
 UI_FONT = 'Yu Gothic UI' if sys.platform == 'win32' else 'Noto Sans CJK JP'
 LIGHT = {
@@ -27,6 +27,59 @@ DARK = {
     'scroll':'#465872', 'switch_off':'#556375', 'disabled_ink':'#75859b',
 }
 COLORS = dict(LIGHT)
+
+MENU_GROUP_HELP = {
+    'capture_start': 'マイクやPCの音、画面を記録して文字起こしします',
+    'capture_other': '録画済みファイルの取り込みと、録音環境の準備を行います',
+    'tools_merge': '複数の結果をまとめたり、動画から音声を取り出したりします',
+    'tools_edit': 'テキストの形式や、発言者の名前を整えます',
+    'settings_env': '文字起こしに必要な環境の導入や、GPUの動作確認を行います',
+    'settings_operation': '負荷制限、キー操作、単語辞書、設定の移行を行います',
+    'settings_logs': '処理の経過やエラーを確認し、診断用に保存します',
+    'settings_support': 'アプリの更新や、操作で困ったときの案内です',
+    'selection_results': '一覧で選択したファイルの結果と保存場所を確認します',
+    'selection_processing': '一覧で選択したファイルの保存方法を変更します',
+    'selection_list': '一覧のファイルを選択したり、一覧から取り除いたりします',
+    'selection_display': 'ファイル一覧に表示する情報を切り替えます',
+}
+MENU_ACTION_HELP = {
+    'live': 'マイク・PC音を録音し、認識結果をリアルタイムで表示します',
+    'gamebar': 'Windows Game Barの録画に合わせて文字起こしします',
+    'capture_setup': '録音・録画に必要な環境を準備します',
+    'cancel_live_asr': '録音ファイルを保持し、録音と文字起こしを終了します',
+    'import': '録画済みの動画を取り込み、音声を文字起こしします',
+    'text_merge': '複数の文字起こしを、1つのTXTファイルにまとめます',
+    'audio_merge': '複数の音声をまとめる、または動画を音声ファイルにします',
+    'csv_merge': '複数の文字起こし結果を、1つのCSVファイルにまとめます',
+    'convert': '文字起こしのTXTとCSVを相互に変換します',
+    'speaker': 'SPEAKER_00などの話者ラベルを、名前に置き換えます',
+    'bulk': '使いたい認識方式を選び、必要な環境をまとめて導入します',
+    'setup': '認識方式ごとの実行環境を準備・割り当てます',
+    'cuda': 'GPUが認識されているか、利用できるかを確認します',
+    'limits': '文字起こし中に使用するCPU・GPUの負荷を調整します',
+    'shortcuts': '録音・録画の開始や停止に使うキーを変更します',
+    'background': 'Windows起動時の実行と、通知領域での待機を設定します',
+    'hints': '固有名詞や専門用語など、認識の参考にする単語を登録します',
+    'settings_export': '今の設定をファイルに保存し、バックアップや移行に使います',
+    'settings_import': '保存しておいた設定ファイルから、設定を読み込みます',
+    'app_updates': '新しいバージョンを確認し、自動で確認する間隔を設定します',
+    'dnd': 'ファイルをドラッグして追加できないときに確認・修復します',
+    'logs': '診断用のログが保存されているフォルダーを開きます',
+    'detached_log': '作業画面とは別のウィンドウで、処理のログを確認します',
+    'export_logs': '問い合わせや調査に使うログを、ZIPファイルにまとめます',
+    'help': '機能の使い方と、利用できるショートカットを確認します',
+    'add_folder': 'フォルダー内の音声・動画を、まとめて一覧に追加します',
+    'watch': '指定フォルダーに追加されたファイルを、自動で処理します',
+    'file_output': '選択したファイルの出力形式と、文字起こしの保存先を変えます',
+    'file_policy': '出力がすでにある場合の、スキップ・上書き・別名保存を選びます',
+    'remove': '選択したファイルを処理一覧から取り除きます',
+    'select_all': '処理一覧にあるすべてのファイルを選択します',
+    'clear': '処理一覧を空にします',
+    'result': '選択したファイルの処理結果と、保存場所を表示します',
+    'open_source': '選択した元ファイルがあるフォルダーを開きます',
+    'open_result': '選択したファイルの文字起こし保存先を開きます',
+    'result_speaker': '選択した文字起こし結果の、話者ラベルを名前に置き換えます',
+}
 
 
 def open_illustrated_guide(parent):
@@ -201,11 +254,19 @@ def apply_theme(root: tk.Misc, dark=False) -> ttk.Style:
     style.configure('TProgressbar', background=c['blue'], troughcolor=c['line'],
                     borderwidth=0, thickness=7)
     style.configure('TPanedwindow', background=c['line'], sashwidth=7)
-    style.configure('Drawer.TButton', anchor='w', padding=(11, 8))
-    style.configure('Category.TButton', anchor='w', padding=(10, 7), borderwidth=1)
+    style.configure('Drawer.TButton', anchor='w', padding=(12, 8), background=c['surface'])
+    style.configure('Navigation.TFrame', background=c['button'])
+    style.configure('Navigation.Caption.TLabel', background=c['button'], foreground=c['muted'],
+                    font=(UI_FONT, 9))
+    style.configure('Category.TButton', anchor='w', padding=(12, 8), borderwidth=0,
+                    background=c['button'])
     style.map('Category.TButton', background=[('selected',c['blue_light']),('active',c['hover'])],
               foreground=[('selected',c['blue']),('!selected',c['ink'])],
               bordercolor=[('selected',c['blue']),('!selected',c['line'])])
+    for name in ('TMenubutton', 'Header.TMenubutton'):
+        style.map(name, background=[('selected', c['blue_light']), ('active', c['hover']),
+                                   ('disabled', c['disabled'])],
+                  foreground=[('disabled', c['disabled_ink']), ('selected', c['blue'])])
     style.configure('Theme.TFrame', background=c['line'])
     style.layout('Theme.TRadiobutton', style.layout('TButton'))
     style.configure('Theme.TRadiobutton', font=('Segoe UI Symbol', 14), width=3,
@@ -339,12 +400,16 @@ class StudioView:
         options.setdefault('icon',ACTION_ICONS.get(key,'sliders'))
         action = MenuAction(menu, label, command, **options)
         self.actions[key] = action
+        if not hasattr(menu, '_navigation_help'):
+            menu._navigation_help = {}
+        menu._navigation_help[action.index] = MENU_ACTION_HELP.get(key, '')
         if idle_only:
             self.idle_controls.append(action)
         return action
 
     def _group(self,menu,key,label,icon):
         group=new_menu(menu)
+        group._navigation_description = MENU_GROUP_HELP.get(key, '')
         menu.add_cascade(label=label,menu=group,icon=icon)
         self.menu_groups[key]=group
         return group
@@ -356,40 +421,14 @@ class StudioView:
             return self.dialogs[key](self.app, *args)
 
     def _menu_button(self, parent, label, *, header=False):
-        button = AccordionButton(parent, text=label, host=self.global_drawer if header else self.queue_drawer,
+        button = NavigationMenuButton(parent, text=label,
                    icon={'録音・録画':'mic','ツール':'tools','設定・診断':'sliders',
                          '追加メニュー':'file-plus','選択項目':'select-all'}.get(label),
-                   max_height=self._header_drawer_height if header
-                              else self._queue_drawer_height,
-                   on_toggle=self._drawer_toggled,
                    style='Header.TMenubutton' if header else 'TMenubutton')
         menu = new_menu(button)
         button.configure(menu=menu)
         self.drawer_buttons.append(button)
         return button, menu
-
-    def _header_drawer_height(self):
-        height = self.app.root.winfo_height()
-        # Keep at least the first queued file visible on short screens. The
-        # accordion already supplies a scrollbar and keyboard focus scrolling.
-        return max(100, min(180, height // 4)) if self._compact else max(100, height // 3)
-
-    def _queue_drawer_height(self):
-        hint = self.hintbar.winfo_reqheight() if not self._compact else 0
-        return max(90, self.workspace.winfo_height()-120-self.queue_toolbar.winfo_reqheight()-100-hint)
-
-    def _drawer_toggled(self, owner):
-        if owner.opened:
-            for button in self.drawer_buttons:
-                if button is not owner and button.opened:
-                    button.close()
-        self._sync_compact_menu()
-        self._place_sash()
-
-    def _sync_compact_menu(self):
-        if self._compact and any(button.opened and button.host is self.global_drawer for button in self.drawer_buttons):
-            self.mode_card.grid_remove()
-        else:self.mode_card.grid()
 
     def _build(self):
         a = self.app
@@ -398,10 +437,6 @@ class StudioView:
         shell.columnconfigure(0, weight=1)
         shell.rowconfigure(3, weight=1)
         self.shell = shell
-        self.global_drawer = ttk.Frame(shell, style='Card.TFrame')
-        self.global_drawer.grid(row=1, column=0, sticky='ew', pady=(0, 10))
-        self.global_drawer.grid_remove()
-
         header = ttk.Frame(shell, style='App.TFrame')
         header.grid(row=0, column=0, sticky='ew', pady=(0, 14))
         header.columnconfigure(1, weight=1)
@@ -551,9 +586,6 @@ class StudioView:
 
     def _build_queue(self, parent):
         a = self.app
-        self.queue_drawer = ttk.Frame(parent, style='Card.TFrame')
-        self.queue_drawer.grid(row=1,column=0,sticky='ew')
-        self.queue_drawer.grid_remove()
         toolbar = ttk.Frame(parent, padding=(13, 9))
         self.queue_toolbar = toolbar
         toolbar.grid(row=0, column=0, sticky='ew')
@@ -591,6 +623,7 @@ class StudioView:
         self._action(result, 'result_speaker', 'この結果の話者名を設定…', a.edit_selected_speakers)
         display.add_checkbutton(label='元の場所・既存出力の扱いの列を表示',icon='columns',
             variable=self.detailed_columns, command=self.toggle_columns)
+        display._navigation_help = {display.index('end'): '元ファイルの場所と、既存の出力をどう扱うかの列を表示します'}
 
         treeframe = ttk.Frame(parent)
         treeframe.grid(row=2, column=0, sticky='nsew')
@@ -753,11 +786,6 @@ class StudioView:
             if height > 100:
                 minimum_top = min(148,max(80,height-64)) if self._compact else min(120,height//2)
                 minimum_bottom = min(64,height//2) if self._compact else min(120,height//2)
-                owner = getattr(self.queue_drawer, '_drawer_owner', None)
-                if owner is not None and owner.opened:
-                    hint = self.hintbar.winfo_reqheight() if not self._compact else 0
-                    minimum_top = min(height-minimum_bottom, self.queue_toolbar.winfo_reqheight()+
-                        getattr(self.queue_drawer, '_expanded_height', 90)+hint+100)
                 position = max(minimum_top, min(height-minimum_bottom, round(height*self._sash_fraction)))
                 self.workspace.sashpos(0, position)
 
@@ -775,7 +803,6 @@ class StudioView:
             compact = event.height < 760
             if compact != self._compact:
                 self._compact = compact
-                self._sync_compact_menu()
                 if compact:
                     self.subtitle.grid_remove()
                     self.app.profile_note.grid_remove()

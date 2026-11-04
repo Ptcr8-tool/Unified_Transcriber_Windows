@@ -50,6 +50,8 @@ jobs:
             Remove-Item -LiteralPath '_internal/tools/prepare_revision_a.py'
           }
           if ((Get-Content -Raw VERSION).Trim() -cne '1.0.0-a') { throw 'Unexpected source version' }
+          python -c "from pathlib import Path; p=Path('VERSION'); p.write_bytes((p.read_text().strip() + '\n').encode('ascii'))"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m compileall -q _internal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest -v test_letter_revision test_installation test_app_updates test_native_launcher test_nsis_builder

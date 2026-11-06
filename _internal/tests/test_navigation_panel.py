@@ -69,6 +69,37 @@ class NavigationPanelTests(StudioGUIFixture):
                 self.key(self.root.focus_get(), 'Escape')
                 self.assertIs(self.root.focus_get(), menu)
 
+    def test_action_home_and_end_skip_disabled_endpoints(self):
+        menu = self.open_menu('ツール')
+        actions = list(menu.action_buttons.values())
+        self.key(actions[0], 'Down')
+        actions[0].state(['disabled'])
+        actions[-1].state(['disabled'])
+        self.key(actions[1], 'End')
+        self.assertIs(self.root.focus_get(), actions[-2])
+        self.key(actions[-2], 'Home')
+        self.assertIs(self.root.focus_get(), actions[1])
+
+    def test_leaving_hovered_action_restores_focused_path(self):
+        menu = self.open_menu('ツール')
+        focused, hovered = list(menu.action_buttons.values())[:2]
+        description = menu.action_descriptions[hovered.cget('text')]
+
+        def point_at(widget):
+            widget.event_generate('<Motion>', warp=True, x=5, y=5)
+            self.root.update()
+
+        point_at(hovered)
+        hovered_path = menu.location.cget('text')
+        self.assertIn(hovered.cget('text'), hovered_path)
+        with patch.object(menu.location, 'configure', wraps=menu.location.configure) as changes:
+            point_at(description)
+            for change in changes.call_args_list:
+                self.assertEqual(change.kwargs['text'], hovered_path)
+        point_at(menu.close_button)
+        self.assertIs(self.root.focus_get(), focused)
+        self.assertIn(focused.cget('text'), menu.location.cget('text'))
+
     def test_compact_menu_keeps_parent_visible_while_long_operation_list_scrolls(self):
         self.root.geometry('900x640+0+0')
         self.root.update()

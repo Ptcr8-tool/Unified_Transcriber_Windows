@@ -210,6 +210,7 @@ class NavigationMenuButton(IconMenubutton):
         panel.bind('<Button-4>', lambda _e: self._scroll(-1))
         panel.bind('<Button-5>', lambda _e: self._scroll(1))
         if self.flat_groups:
+            self._action_paths = {}
             self.location.configure(text=self.cget('text'))
             self.group_title.pack_forget()
             self.group_description.configure(text='見出しの下から操作を選びます')
@@ -242,7 +243,7 @@ class NavigationMenuButton(IconMenubutton):
                                   ('<Configure>', self._root_changed),
                                   ('<Unmap>', self._root_changed)):
             self._bindings.append((root, sequence, root.bind(sequence, handler, add='+')))
-        target = self.group_buttons.get(self.active_group) or self._first_action() or self.close_button
+        target = self.group_buttons.get(self.active_group) or next(iter(self._enabled_actions()), self.close_button)
         target.focus_force()
         return 'break'
 
@@ -304,12 +305,17 @@ class NavigationMenuButton(IconMenubutton):
             widget.bind('<FocusIn>', self._reveal)
             if group:
                 path = f'{self.cget("text")} › {group} › {label}'
+                self._action_paths[widget] = path
                 def show_path(_event, text=path):
                     self.location.configure(text=text)
+                row.bind('<Enter>', show_path)
+                row.bind('<Leave>', self._leave_action)
                 widget.bind('<FocusIn>', show_path, add='+')
                 widget.bind('<Motion>', show_path)
                 description.bind('<Motion>', show_path)
             widget.bind('<Left>', lambda _e: self._focus_category())
+            widget.bind('<Home>', lambda _e: self._focus_actions())
+            widget.bind('<End>', lambda _e: self._focus_actions(-1))
             for sequence, offset in (('<Up>', -1), ('<Down>', 1)):
                 widget.bind(sequence, lambda _e, w=widget, step=offset: self._move_action(w, step))
             self.action_buttons[label] = widget
@@ -348,13 +354,22 @@ class NavigationMenuButton(IconMenubutton):
         labels = list(self.group_buttons)
         return self._select_category((labels.index(label)+step) % len(labels))
 
-    def _first_action(self):
-        return next((b for b in self.action_buttons.values() if not b.instate(['disabled'])), None)
+    def _leave_action(self, event):
+        if not self.opened:
+            return
+        target = self.winfo_containing(event.x_root, event.y_root)
+        # Tk also sends Leave to a row when entering one of its children.
+        if target is event.widget or getattr(target, 'master', None) is event.widget:
+            return
+        self.location.configure(text=self._action_paths.get(self.focus_get(), self.cget('text')))
 
-    def _focus_actions(self):
-        target = self._first_action()
-        if target is not None:
-            target.focus_set()
+    def _enabled_actions(self):
+        return [b for b in self.action_buttons.values() if not b.instate(['disabled'])]
+
+    def _focus_actions(self, index=0):
+        buttons = self._enabled_actions()
+        if buttons:
+            buttons[index].focus_set()
         return 'break'
 
     def _focus_category(self):
@@ -364,7 +379,7 @@ class NavigationMenuButton(IconMenubutton):
         return 'break'
 
     def _move_action(self, widget, step):
-        buttons = [b for b in self.action_buttons.values() if not b.instate(['disabled'])]
+        buttons = self._enabled_actions()
         if widget in buttons:
             buttons[(buttons.index(widget)+step) % len(buttons)].focus_set()
         return 'break'

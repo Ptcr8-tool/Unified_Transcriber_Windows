@@ -224,6 +224,15 @@ class NavigationPanelTests(StudioGUIFixture):
         self.assertTrue(second.opened)
         self.assertEqual(sum(button.opened for button in self.app.ui.drawer_buttons), 1)
 
+    def test_stacking_notifications_keep_the_next_menu_open(self):
+        for label in ('録音・録画', 'ツール') * 2:
+            menu = self.open_menu(label)
+            self.root.event_generate('<Configure>')
+            self.root.update()
+            self.assertTrue(menu.opened)
+            self.assertTrue(menu.location.winfo_exists())
+            menu.close()
+
     def test_resize_closes_menu_and_reopening_releases_only_its_own_root_bindings(self):
         sequences = ('<ButtonPress-1>', '<Configure>', '<Unmap>')
         sentinel = self.root.bind('<ButtonPress-1>', lambda _event: None, add='+')

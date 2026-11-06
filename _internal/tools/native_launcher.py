@@ -55,9 +55,11 @@ def toolset_for(studio: Path) -> str:
 
 
 def write_project(folder: Path, version: str, icon: Path, toolset: str) -> Path:
-    if not re.fullmatch(r'\d+\.\d+\.\d+', version):
-        raise ValueError('A stable application version is required.')
-    numbers = tuple(map(int, version.split('.')))
+    if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[a-z])?', version):
+        raise ValueError('A numeric version or a single-letter revision is required.')
+    base, _, suffix = version.partition('-')
+    numbers = tuple(map(int, base.split('.')))
+    revision = ord(suffix) - ord('a') + 1 if suffix else 0
     if any(number > 65535 for number in numbers):
         raise ValueError('Native version components must fit the Windows version resource.')
     if not re.fullmatch(r'v14\d', toolset):
@@ -67,7 +69,7 @@ def write_project(folder: Path, version: str, icon: Path, toolset: str) -> Path:
         shutil.copyfile(TOOLS / ('native_launcher.' + suffix), folder / ('native_launcher.' + suffix))
     shutil.copyfile(icon, folder / 'native_launcher.ico')
     (folder / 'native_launcher_version.h').write_text(
-        '#define UNIFIED_VERSION_TUPLE ' + ','.join(map(str, (*numbers, 0))) + '\n'
+        '#define UNIFIED_VERSION_TUPLE ' + ','.join(map(str, (*numbers, revision))) + '\n'
         '#define UNIFIED_VERSION_STRING "' + version + '"\n', encoding='ascii')
     project = folder / 'native_launcher.vcxproj'
     # Inputs below are builder-owned. XML escaping keeps an ampersand in the

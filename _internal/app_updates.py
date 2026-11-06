@@ -57,6 +57,16 @@ def parse_version(value: str) -> tuple[int, int, int]:
     return tuple(int(part) for part in value.split('.'))
 
 
+def parse_installed_version(value: str) -> tuple[int, int, int, int]:
+    """Allow a local lettered revision without relaxing public release checks."""
+    if not isinstance(value, str):
+        raise UpdateSecurityError('バージョン表記を確認できません。')
+    base, separator, suffix = value.partition('-')
+    if separator and not re.fullmatch(r'[a-z]', suffix):
+        raise UpdateSecurityError('バージョン表記を確認できません。')
+    return (*parse_version(base), ord(suffix) - ord('a') + 1 if separator else 0)
+
+
 def is_check_due(mode: str, days: int, last_checked: str = '', *,
                  now: datetime | None = None) -> bool:
     """Check scheduling; invalid/future timestamps never suppress checks forever."""
@@ -265,7 +275,7 @@ def _asset(assets: list, name: str, tag: str, limit: int, *, required: bool = Tr
 
 
 def parse_release(data: dict, current_version: str) -> UpdateInfo | None:
-    current = parse_version(current_version)
+    current = parse_installed_version(current_version)
     if (not isinstance(data, dict) or data.get('draft') is not False or
             data.get('prerelease') is not False):
         raise UpdateSecurityError('正式リリース以外の更新情報を拒否しました。')
@@ -273,7 +283,7 @@ def parse_release(data: dict, current_version: str) -> UpdateInfo | None:
     if not isinstance(tag, str) or not tag.startswith('v'):
         raise UpdateSecurityError('リリースのバージョンが不正です。')
     version = tag[1:]
-    candidate = parse_version(version)
+    candidate = (*parse_version(version), 0)
     release_url = data.get('html_url')
     if release_url != f'{RELEASE_BASE}tag/{tag}':
         raise UpdateSecurityError('指定リポジトリ以外のリリースを拒否しました。')
@@ -292,7 +302,7 @@ def parse_release(data: dict, current_version: str) -> UpdateInfo | None:
 
 def check_latest(current_version: str, *, opener=None) -> UpdateInfo | None:
     """Look up the public stable release without any GitHub authentication."""
-    parse_version(current_version)
+    parse_installed_version(current_version)
     return parse_release(_load_json(_read_response(RELEASE_API, METADATA_LIMIT,
                                                    asset=False, opener=opener)), current_version)
 

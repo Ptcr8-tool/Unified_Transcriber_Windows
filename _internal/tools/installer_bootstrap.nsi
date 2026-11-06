@@ -35,7 +35,7 @@ ShowInstDetails nevershow
 Page instfiles
 LoadLanguageFile "${NSISDIR}\Contrib\Language files\Japanese.nlf"
 BrandingText "文字起こし統合スタジオ"
-VIProductVersion "${VERSION}.0"
+VIProductVersion "${NUMERIC_VERSION}"
 VIAddVersionKey /LANG=1041 "ProductName" "文字起こし統合スタジオ"
 VIAddVersionKey /LANG=1041 "FileDescription" "文字起こし統合スタジオ セットアップ"
 VIAddVersionKey /LANG=1041 "FileVersion" "${VERSION}"

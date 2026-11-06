@@ -271,8 +271,13 @@ def build_installer(*, runtime: Path, archive: Path, info: Path, code: Path,
     """Return the one executable users download; compile only pinned tooling."""
     if os.name != 'nt':
         raise RuntimeError('Build the NSIS distribution on the Windows x64 build runner.')
-    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
-        raise ValueError('A stable numeric application version is required.')
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z])?', version):
+        raise ValueError('A numeric version or a single-letter revision is required.')
+    base, _, suffix = version.partition('-')
+    revision = ord(suffix) - ord('a') + 1 if suffix else 0
+    if any(int(part) > 65535 for part in base.split('.')):
+        raise ValueError('Native version components must fit the Windows version resource.')
+    numeric_version = base + '.' + str(revision)
     ordinary(icon)
     archive_path = work / 'downloads' / ('nsis-' + NSIS_VERSION + '.zip')
     download_nsis(archive_path)
@@ -285,7 +290,8 @@ def build_installer(*, runtime: Path, archive: Path, info: Path, code: Path,
     if executable.exists():
         raise ValueError('The setup output already exists; use a fresh output directory.')
     driver = work / 'build-nsis.nsi'
-    definitions = {'VERSION': version, 'STAGING': nsis_literal(staging),
+    definitions = {'VERSION': version, 'NUMERIC_VERSION': numeric_version,
+                   'STAGING': nsis_literal(staging),
                    'OUTPUT': nsis_literal(executable), 'APPICON': nsis_literal(icon)}
     driver.write_text(''.join(f'!define {name} "{value}"\n' for name, value in definitions.items())
                       + '!include "' + nsis_literal(_SCRIPT) + '"\n', encoding='utf-8-sig')

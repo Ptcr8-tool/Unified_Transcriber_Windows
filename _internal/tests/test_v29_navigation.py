@@ -40,7 +40,7 @@ class GroupedNavigation(fixtures.StudioGUIFixture):
                ('変換・話者名','話者名を設定…','speaker',()))
         for group,label,key,args in cases:
             with self.subTest(label=label):
-                tools.toggle();self.root.update();tools.group_buttons[group].invoke();self.root.update()
+                tools.toggle();self.root.update();self.assertFalse(tools.group_buttons)
                 factory=MagicMock()
                 with patch.dict(view.dialogs,{key:factory}):tools.action_buttons[label].invoke()
                 factory.assert_called_once_with(self.app,*args)
@@ -66,7 +66,7 @@ class GroupedNavigation(fixtures.StudioGUIFixture):
         button.group_buttons['一覧の操作'].invoke();self.root.update()
         action=button.action_buttons['すべて選択']
         paths=self.add_samples(2);action.focus_force()
-        action.event_generate('<KeyPress-space>');action.event_generate('<KeyRelease-space>')
+        action.event_generate('<KeyPress-space>')
         self.root.after(160,self.root.quit);self.root.mainloop()
         self.assertCountEqual(self.app.tree.selection(),[str(path) for path in paths])
         self.assertFalse(button.opened)
@@ -74,15 +74,19 @@ class GroupedNavigation(fixtures.StudioGUIFixture):
         toggle=next(w for w in button.action_buttons.values() if isinstance(w,ToggleSwitch))
         self.assertTrue(toggle.instate(['selected']))
 
-    def test_compact_header_menu_keeps_first_file_visible_and_restores_model_picker(self):
+    def test_compact_header_menu_keeps_workspace_geometry_and_model_picker(self):
         path=self.add_samples(1)[0];view=self.app.ui
         self.root.geometry('900x640');self.root.update()
+        before=(self.app.tree.winfo_rooty(),self.app.tree.winfo_height(),view.mode_card.winfo_rooty())
         settings=next(button for button in view.drawer_buttons if button.cget('text')=='設定・診断')
         settings.toggle();self.root.update();settings.group_buttons['操作・設定'].invoke()
         self.root.after(160,self.root.quit);self.root.mainloop()
         row=self.app.tree.bbox(str(path));self.assertTrue(row)
         self.assertLessEqual(row[1]+row[3],self.app.tree.winfo_height())
-        self.assertLessEqual(settings._clip.winfo_height(), view._header_drawer_height())
+        self.assertEqual(before,(self.app.tree.winfo_rooty(),self.app.tree.winfo_height(),view.mode_card.winfo_rooty()))
+        self.assertTrue(view.profile_box.winfo_ismapped())
+        self.assertLessEqual(settings.panel.winfo_rooty()+settings.panel.winfo_height(),
+                             self.root.winfo_rooty()+self.root.winfo_height())
         if settings._body.winfo_reqheight() > settings._clip.winfo_height():
             settings._clip.yview_moveto(1.0);self.root.update()
             self.assertAlmostEqual(settings._clip.yview()[1],1.0,places=3)

@@ -144,12 +144,12 @@ class WorkflowTests(fixtures.StudioGUIFixture):
         self.assertNotEqual(dialog.with_audio.get(), before)
         dialog.win.destroy()
 
-    def test_accordion_commands_and_column_switch_keep_state_on_reopen(self):
+    def test_menu_commands_and_column_switch_keep_state_on_reopen(self):
         view=self.app.ui
         view.selection_button.toggle();self.root.update()
         self.assertTrue(view.selection_button.opened)
         view.selection_button.group_buttons['表示'].invoke();self.root.update()
-        switches=[w for w in fixtures.descendants(view.queue_drawer) if isinstance(w,ToggleSwitch)]
+        switches=[w for w in fixtures.descendants(view.selection_button.panel) if isinstance(w,ToggleSwitch)]
         self.assertEqual(len(switches),1)
         switches[0].invoke()
         self.assertTrue(view.detailed_columns.get())
@@ -160,13 +160,13 @@ class WorkflowTests(fixtures.StudioGUIFixture):
         self.app._set_busy(True)
         self.assertFalse(view.selection_button.opened)
 
-    def test_accordion_opens_inline_for_mouse_and_keyboard(self):
+    def test_menu_opens_anchored_panel_for_mouse_and_keyboard(self):
         button=self.app.ui.selection_button
         button.event_generate('<ButtonPress-1>', x=10, y=10)
         button.event_generate('<ButtonRelease-1>', x=10, y=10)
         self.root.update()
         self.assertTrue(button.opened)
-        self.assertTrue(self.app.ui.queue_drawer.winfo_ismapped())
+        self.assertTrue(button.panel.winfo_ismapped())
         menu=button.nametowidget(str(button.cget('menu')))
         self.assertFalse(menu.winfo_ismapped())
         button.focus_force();button.event_generate('<space>');self.root.update()
@@ -180,18 +180,18 @@ class WorkflowTests(fixtures.StudioGUIFixture):
         self.assertFalse(thread.call_args.kwargs['args'][2])
         thread.return_value.start.assert_called_once()
 
-    def test_compact_accordion_scrolls_and_keeps_queue_visible(self):
+    def test_compact_menu_keeps_queue_geometry_and_displays_switch(self):
         self.add_samples()
         self.root.geometry('900x640');self.root.update()
+        original=(self.app.tree.winfo_rooty(),self.app.tree.winfo_height())
         view=self.app.ui;view.selection_button.toggle()
         self.root.after(180,self.root.quit);self.root.mainloop()
         self.assertGreaterEqual(self.app.tree.winfo_height(),60)
-        canvas=next(w for w in view.queue_drawer.winfo_children() if isinstance(w,tk.Canvas))
-        self.assertLess(canvas.winfo_height(),canvas.bbox('all')[3])
+        self.assertEqual(original,(self.app.tree.winfo_rooty(),self.app.tree.winfo_height()))
+        canvas=view.selection_button._clip
         commands=[w for w in fixtures.descendants(canvas) if isinstance(w,ttk.Button) and w.cget('style')=='Drawer.TButton']
         self.assertTrue(all(w.winfo_width()>300 for w in commands))
         view.selection_button.group_buttons['表示'].invoke();self.root.update()
-        canvas.yview_moveto(1);self.root.update()
         switch=next(w for w in fixtures.descendants(canvas) if isinstance(w,ToggleSwitch))
         self.assertGreaterEqual(switch.winfo_rooty(),canvas.winfo_rooty())
         self.assertLessEqual(switch.winfo_rooty()+switch.winfo_height(),

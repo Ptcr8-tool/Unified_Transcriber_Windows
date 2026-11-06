@@ -40,7 +40,7 @@ class GroupedNavigation(fixtures.StudioGUIFixture):
                ('変換・話者名','話者名を設定…','speaker',()))
         for group,label,key,args in cases:
             with self.subTest(label=label):
-                tools.toggle();self.root.update();tools.group_buttons[group].invoke();self.root.update()
+                tools.toggle();self.root.update();self.assertFalse(tools.group_buttons)
                 factory=MagicMock()
                 with patch.dict(view.dialogs,{key:factory}):tools.action_buttons[label].invoke()
                 factory.assert_called_once_with(self.app,*args)

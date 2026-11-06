@@ -43,8 +43,8 @@ MENU_GROUP_HELP = {
     'selection_display': 'ファイル一覧に表示する情報を切り替えます',
 }
 MENU_ACTION_HELP = {
-    'live': 'マイク・PC音を録音し、認識結果をリアルタイムで表示します',
-    'gamebar': 'Windows Game Barの録画に合わせて文字起こしします',
+    'live': 'マイク・PC音の録音設定を開きます。録音だけの利用もできます',
+    'gamebar': '画面録画の設定を開き、録画するウィンドウを選びます',
     'capture_setup': '録音・録画に必要な環境を準備します',
     'cancel_live_asr': '録音ファイルを保持し、録音と文字起こしを終了します',
     'import': '録画済みの動画を取り込み、音声を文字起こしします',
@@ -256,6 +256,7 @@ def apply_theme(root: tk.Misc, dark=False) -> ttk.Style:
     style.configure('TPanedwindow', background=c['line'], sashwidth=7)
     style.configure('Drawer.TButton', anchor='w', padding=(12, 8), background=c['surface'])
     style.configure('Navigation.TFrame', background=c['button'])
+    style.configure('Navigation.Mark.TFrame', background=c['blue'])
     style.configure('Navigation.Caption.TLabel', background=c['button'], foreground=c['muted'],
                     font=(UI_FONT, 9))
     style.configure('Category.TButton', anchor='w', padding=(12, 8), borderwidth=0,
@@ -422,6 +423,7 @@ class StudioView:
 
     def _menu_button(self, parent, label, *, header=False):
         button = NavigationMenuButton(parent, text=label,
+                   flat_groups=header and label in ('録音・録画', 'ツール'),
                    icon={'録音・録画':'mic','ツール':'tools','設定・診断':'sliders',
                          '追加メニュー':'file-plus','選択項目':'select-all'}.get(label),
                    style='Header.TMenubutton' if header else 'TMenubutton')
@@ -506,11 +508,11 @@ class StudioView:
         self._action(support, 'dnd', 'D&D 診断・修復…', a.repair_dnd, idle_only=False)
         self._action(logs, 'logs', '診断ログフォルダーを開く',
                      a.open_diagnostic_folder, idle_only=False)
-        self._action(logs, 'detached_log', 'ログを別ウィンドウで表示…',
+        self._action(logs, 'detached_log', 'ログを別ウィンドウで表示',
                      a.open_detached_log, idle_only=False)
         self._action(logs, 'export_logs', 'ログをZIP保存…',
                      a.export_diagnostics, idle_only=False)
-        self._action(support, 'help', '使い方・ショートカット…', self.show_help,
+        self._action(support, 'help', '使い方・ショートカット', self.show_help,
                      idle_only=False, accelerator='F1')
 
         quick = ttk.Frame(header, style='App.TFrame')
@@ -677,7 +679,7 @@ class StudioView:
         self.log_heading = heading
         heading.grid(row=0, column=0, sticky='ew', pady=(0, 7))
         ttk.Label(heading, text='認識プレビューとログ', style='Section.TLabel').pack(side='left')
-        IconButton(heading, text='ログを別ウィンドウで表示…', command=a.open_detached_log,
+        IconButton(heading, text='ログを別ウィンドウで表示', command=a.open_detached_log,
                    style='Quiet.TButton').pack(side='right')
         a.log_panels = ttk.Panedwindow(parent, orient='horizontal')
         a.log_panels.grid(row=1, column=0, sticky='nsew')
@@ -902,7 +904,7 @@ class StudioView:
         text.configure(yscrollcommand=bar.set)
         text.insert('1.0',
             '1  認識方式を選ぶ\n'
-            '初めて使う方式は「設定・診断 → 一括セットアップ」から導入します。'
+            '初めて使う方式は「設定・診断 → 環境の準備・確認 → 一括セットアップ」から導入します。'
             'モデル・話者分離・既定の保存先は「詳細設定」で変更できます。\n\n'
             '2  ファイルを追加する\n'
             '音声・動画を一覧にドロップするか「ファイルを追加」を押します。'
@@ -919,7 +921,7 @@ class StudioView:
             '保存先の列はダブルクリックでそのフォルダーを開きます。'
             '「完了後に話者名設定」をONにすると、一括処理の終了後に結果を順番に開きます。\n\n'
             '録音・録画 / ツール\n'
-            'メニューは上段の中カテゴリで切り替え、その下から操作を選べます。'
+            '「録音・録画」と「ツール」では、見出しの下から操作を直接選びます。\n'
             'TOPのリアルタイム録音・Game Bar連動は初回に設定画面を開きます。'
             '「次回以降は設定画面をスキップする」をONにして保存すると、TOPから前回設定で開始します。'
             'Game BarはスキップがONでも、録画対象の画像付き一覧を毎回表示します。'
@@ -927,6 +929,8 @@ class StudioView:
             '録画対象は画像付き一覧から選択できます。'
             '「録音・録画」からセットアップの再実行や標準録画の取り込みもできます。'
             'TXT・音声・CSVの結合、TXT ⇔ CSV変換、話者名編集は「ツール」へ。\n\n'
+            '設定・診断\n'
+            '左にあるカテゴリを選び、右の説明を読んで操作を選びます。Escでメニューを閉じます。\n\n'
             '設定の移行・デフォルトの保存先\n'
             '「設定・診断 → 操作・設定」から、設定をまとめて書き出し・読み込みできます。'
             'ユーザーやアプリのフォルダーが変わっても、その中の保存先を移行先に合わせます。'
@@ -945,7 +949,7 @@ class StudioView:
             'TOP右側の3つのアイコンを、左からライト／システムに合わせる／ダークとして選択できます。'
             'マウスを重ねると名前を表示します。\n\n'
             'ショートカット\n'
-            '録音開始・Game Bar開始・停止のキーは「設定・診断 → 録音・録画のショートカット」で設定できます。'
+            '録音開始・Game Bar開始・停止のキーは「設定・診断 → 操作・設定 → 録音・録画のショートカット」で設定できます。'
             '「キー入力」で実際の組み合わせを押して登録します。初期状態は未設定です。\n'
             'Ctrl+O  ファイルを追加\nCtrl+Enter  文字起こしを開始\n'
             'Ctrl+A  一覧のすべての行を選択（一覧にフォーカスがあるとき）\n'

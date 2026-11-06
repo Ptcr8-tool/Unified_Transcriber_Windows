@@ -117,8 +117,9 @@ class NavigationMenuButton(IconMenubutton):
     The backing Tk menus still own commands, variables and enabled states. The
     panel is presentation only, so opening it never moves the working area.
     """
-    def __init__(self, master, **kwargs):
+    def __init__(self, master, *, flat_groups=False, **kwargs):
         super().__init__(master, takefocus=True, **kwargs)
+        self.flat_groups = flat_groups
         self.opened = False
         self.active_group = None
         self.group_buttons, self.action_buttons = {}, {}
@@ -171,7 +172,7 @@ class NavigationMenuButton(IconMenubutton):
         self.group_buttons, self.action_buttons = {}, {}
         end = menu.index('end')
         groups = [i for i in range(end+1 if end is not None else 0) if menu.type(i) == 'cascade']
-        if groups:
+        if groups and not self.flat_groups:
             rail = ttk.Frame(content, padding=(12, 12), style='Navigation.TFrame')
             rail.grid(row=0, column=0, sticky='ns')
             ttk.Label(rail, text='カテゴリ', style='Navigation.Caption.TLabel').pack(anchor='w', padx=8, pady=(0, 8))
@@ -208,7 +209,22 @@ class NavigationMenuButton(IconMenubutton):
         panel.bind('<MouseWheel>', self._wheel)
         panel.bind('<Button-4>', lambda _e: self._scroll(-1))
         panel.bind('<Button-5>', lambda _e: self._scroll(1))
-        if groups:
+        if self.flat_groups:
+            self.location.configure(text=self.cget('text'))
+            self.group_title.pack_forget()
+            self.group_description.configure(text='見出しの下から操作を選びます')
+            self.group_description.pack_forget()
+            self.action_buttons, self.action_descriptions = {}, {}
+            for item in groups:
+                label = menu.entrycget(item, 'label')
+                child_menu = self.nametowidget(str(menu.entrycget(item, 'menu')))
+                heading = ttk.Frame(self._action_area)
+                heading.pack(fill='x', pady=(6, 3))
+                ttk.Frame(heading, width=3, style='Navigation.Mark.TFrame').pack(side='left', fill='y', padx=(0, 8))
+                ttk.Label(heading, text=label, style='Section.TLabel').pack(side='left')
+                ttk.Separator(heading).pack(side='left', fill='x', expand=True, padx=8)
+                self._populate_actions(child_menu, group=label)
+        elif groups:
             selected = self.active_group if self.active_group in self._group_menus else next(iter(self._group_menus))
             self.show_group(selected)
         else:
@@ -239,8 +255,13 @@ class NavigationMenuButton(IconMenubutton):
         # to the working window so menus also fit on a secondary monitor.
         right = root.winfo_rootx()+root.winfo_width()-gap
         bottom = root.winfo_rooty()+root.winfo_height()-gap
-        width = min(round(760*scale), max(1, right-left))
-        height = min(round(400*scale), max(1, bottom-top))
+        width = min(round((600 if self.flat_groups else 760)*scale), max(1, right-left))
+        height = round(400*scale)
+        if self.flat_groups:
+            self._clip.itemconfigure(self._window_item, width=width - round(64*scale))
+            self.panel.update_idletasks()
+            height = self.panel.winfo_reqheight() - self._clip.winfo_reqheight() + self._body.winfo_reqheight()
+        height = min(height, max(1, bottom-top))
         x = max(left, min(self.winfo_rootx(), right-width))
         below = self.winfo_rooty()+self.winfo_height()+gap
         above = self.winfo_rooty()-gap-height
@@ -248,13 +269,14 @@ class NavigationMenuButton(IconMenubutton):
         y = max(top, min(y, bottom-height))
         self.panel.geometry(f'{width}x{height}+{x}+{y}')
 
-    def _populate_actions(self, menu):
+    def _populate_actions(self, menu, *, group=None):
         end = menu.index('end')
-        self.action_buttons, self.action_descriptions = {}, {}
+        if group is None:
+            self.action_buttons, self.action_descriptions = {}, {}
         for item in range(end+1 if end is not None else 0):
             if menu.type(item) == 'separator':
                 continue
-            row = ttk.Frame(self._action_area, padding=(0, 4, 0, 8))
+            row = ttk.Frame(self._action_area, padding=(12, 1, 0, 3) if group else (0, 4, 0, 8))
             row.pack(fill='x')
             label = menu.entrycget(item, 'label')
             if menu.type(item) == 'checkbutton':
@@ -280,6 +302,13 @@ class NavigationMenuButton(IconMenubutton):
             description.pack(anchor='w', fill='x', pady=(4, 0))
             description.bind('<Button-1>', lambda _e, control=widget: control.invoke())
             widget.bind('<FocusIn>', self._reveal)
+            if group:
+                path = f'{self.cget("text")} › {group} › {label}'
+                def show_path(_event, text=path):
+                    self.location.configure(text=text)
+                widget.bind('<FocusIn>', show_path, add='+')
+                widget.bind('<Motion>', show_path)
+                description.bind('<Motion>', show_path)
             widget.bind('<Left>', lambda _e: self._focus_category())
             for sequence, offset in (('<Up>', -1), ('<Down>', 1)):
                 widget.bind(sequence, lambda _e, w=widget, step=offset: self._move_action(w, step))

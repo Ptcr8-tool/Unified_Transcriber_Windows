@@ -55,6 +55,20 @@ class NavigationPanelTests(StudioGUIFixture):
                             self.assertTrue(trigger.action_descriptions[label].cget('text').strip())
                 trigger.close()
 
+    def test_short_menus_expose_all_five_actions_without_selecting_a_category(self):
+        for label in ('録音・録画', 'ツール'):
+            with self.subTest(label=label):
+                menu = self.open_menu(label)
+                self.assertFalse(menu.group_buttons)
+                self.assertEqual(len(menu.action_buttons), 5)
+                actions = list(menu.action_buttons.values())
+                for action in actions:
+                    self.assertIs(self.root.focus_get(), action)
+                    self.assertIn(action.cget('text'), menu.location.cget('text'))
+                    self.key(action, 'Down')
+                self.key(self.root.focus_get(), 'Escape')
+                self.assertIs(self.root.focus_get(), menu)
+
     def test_compact_menu_keeps_parent_visible_while_long_operation_list_scrolls(self):
         self.root.geometry('900x640+0+0')
         self.root.update()
@@ -135,7 +149,7 @@ class NavigationPanelTests(StudioGUIFixture):
         self.assertIsNone(button.panel)
 
     def test_arrow_keys_move_between_categories_and_actions_then_enter_opens_dialog(self):
-        button = self.open_menu('ツール')
+        button = self.open_menu('設定・診断')
         first_category = button.active_group
         self.key(self.root.focus_get(), 'Down')
         self.assertNotEqual(button.active_group, first_category)
@@ -152,15 +166,16 @@ class NavigationPanelTests(StudioGUIFixture):
         self.assertIs(self.root.focus_get(), first_action)
         self.key(first_action, 'Left')
         self.assertIs(self.root.focus_get(), selected_category)
-        self.key(selected_category, 'Right')
         dialog = MagicMock()
-        with patch.dict(self.app.ui.dialogs, {'convert': dialog}):
+        self.key(selected_category, 'Home')
+        self.key(self.root.focus_get(), 'Right')
+        with patch.dict(self.app.ui.dialogs, {'bulk': dialog}):
             self.key(self.root.focus_get(), 'Return')
         dialog.assert_called_once_with(self.app)
         self.assertFalse(button.opened)
 
     def test_tab_reaches_action_without_changing_selected_category(self):
-        button = self.open_menu('ツール')
+        button = self.open_menu('設定・診断')
         last_category = list(button.group_buttons.values())[-1]
         last_category.invoke()
         last_category.focus_force()

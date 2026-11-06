@@ -150,6 +150,8 @@ class NavigationMenuButton(IconMenubutton):
         panel.transient(root)
         panel.title(f'{self.cget("text")} メニュー')
         panel.bind('<Escape>', lambda _e: self._dismiss())
+        self._focus_entered = False
+        panel.bind('<FocusIn>', self._focus_in)
         panel.bind('<FocusOut>', self._focus_out)
         shell = ttk.Frame(panel, style='Card.TFrame', padding=1)
         shell.pack(fill='both', expand=True)
@@ -237,6 +239,8 @@ class NavigationMenuButton(IconMenubutton):
         self._position_panel()
         panel.deiconify()
         panel.lift()
+        panel.update_idletasks()
+        self._owner_geometry = root.winfo_geometry()
         # Root bindings run only for events in the working window. No grab is
         # needed: another menu, the queue and other apps remain accessible.
         for sequence, handler in (('<ButtonPress-1>', self._outside_click),
@@ -424,15 +428,25 @@ class NavigationMenuButton(IconMenubutton):
             self.close()
 
     def _root_changed(self, event):
-        if event.widget is self.winfo_toplevel():
+        root = self.winfo_toplevel()
+        # Windows can also send Configure when a transient changes stacking order.
+        if event.widget is root and (event.type == tk.EventType.Unmap or
+                                     root.winfo_geometry() != self._owner_geometry):
             self.close()
 
-    def _focus_out(self, _event):
-        if not self.opened:
+    def _focus_in(self, _event):
+        self._focus_entered = True
+        if self._focus_job is not None:
+            self.after_cancel(self._focus_job)
+            self._focus_job = None
+
+    def _focus_out(self, event):
+        if not self.opened or not self._focus_entered or event.widget is not self.panel:
             return
         if self._focus_job is not None:
             self.after_cancel(self._focus_job)
-        self._focus_job = self.after_idle(self._check_focus)
+        # Let the window manager finish activating the newly mapped popup.
+        self._focus_job = self.after(100, self._check_focus)
 
     def _check_focus(self):
         self._focus_job = None

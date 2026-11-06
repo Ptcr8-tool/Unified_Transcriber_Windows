@@ -40,6 +40,15 @@ jobs:
           architecture: x64
           check-latest: true
 
+      - name: Exercise Windows menu activation and keyboard navigation
+        env:
+          PYTHONPATH: '_internal;_internal/tests'
+        run: |
+          foreach ($attempt in 1..3) {
+            python -m unittest -q test_navigation_panel test_v29_navigation test_guide_top
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
       - name: Validate source and record exact build manifest
         run: |
           @'

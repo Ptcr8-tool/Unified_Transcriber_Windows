@@ -10,6 +10,8 @@ import threading
 import time
 
 from engine_progress import EngineUpdate
+from hf_cache import hf_cache_probes
+from hf_transport import configure_model_tls
 
 PREFIX = '@@SETUP_PROGRESS@@'
 _print_lock = threading.Lock()
@@ -103,7 +105,15 @@ def progress_tqdm(stage: str):
 
 @contextmanager
 def hf_snapshot_progress(stage: str):
-    """Intercept only this setup subprocess's HF snapshots, without changing downloads."""
+    """Prepare model transport/cache handling and report download progress."""
+    configure_model_tls()
+    with hf_cache_probes(), _snapshot_progress(stage):
+        yield
+
+
+@contextmanager
+def _snapshot_progress(stage: str):
+    """Intercept this model worker's HF snapshot and byte progress displays."""
     hub = original = progress = None
     try:
         import huggingface_hub as hub

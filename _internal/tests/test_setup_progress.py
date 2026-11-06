@@ -3,7 +3,7 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
@@ -14,6 +14,36 @@ from setup_progress import (PREFIX, emit_setup_progress, parse_setup_line,
 
 
 class SetupProgressTests(unittest.TestCase):
+    def test_transport_and_cache_guard_run_without_progress_support(self):
+        events = []
+
+        @contextmanager
+        def cache_guard():
+            events.append('cache entered')
+            try:
+                yield
+            finally:
+                events.append('cache restored')
+
+        with patch('setup_progress.configure_model_tls',
+                   side_effect=lambda: events.append('trust configured')), \
+             patch('setup_progress.hf_cache_probes', cache_guard), \
+             patch('setup_progress.progress_tqdm', return_value=None):
+            with self.assertRaisesRegex(ValueError, 'download failed'):
+                with hf_snapshot_progress('モデル取得'):
+                    events.append('download')
+                    raise ValueError('download failed')
+        self.assertEqual(events, ['trust configured', 'cache entered',
+                                  'download', 'cache restored'])
+
+    def test_transport_configuration_failure_stops_before_download(self):
+        with patch('setup_progress.configure_model_tls', side_effect=RuntimeError('trust failed')), \
+             patch('setup_progress.hf_cache_probes') as cache:
+            with self.assertRaisesRegex(RuntimeError, 'trust failed'):
+                with hf_snapshot_progress('モデル取得'):
+                    self.fail('download must wait for certificate trust')
+        cache.assert_not_called()
+
     def test_structured_percentage_is_stage_scoped(self):
         output = io.StringIO()
         with redirect_stdout(output):

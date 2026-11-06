@@ -1,0 +1,4 @@
+# Official PyPI source archives. These versions do not publish wheels.
+# Install with --require-hashes --no-deps --no-build-isolation after the build lock.
+docopt==0.6.2 --hash=sha256:49b3a825280bd66b3aa83585ef59c4a8c82f2c8a522dbe754a8bc8d08c85c491
+antlr4-python3-runtime==4.9.3 --hash=sha256:f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b

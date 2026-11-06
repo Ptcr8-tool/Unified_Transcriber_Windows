@@ -28,17 +28,19 @@ def run_probe(command, *, purpose: str, **kwargs):
         raise RuntimeError(f'{purpose}が{PROBE_TIMEOUT}秒以内に完了しませんでした。') from exc
 
 
-def run(*args: str) -> None:
+def run(*args: str, source_packages: tuple[str, ...] = ()) -> None:
     command = list(args)
     if len(command) > 3 and command[1:3] == ['-m', 'pip'] and 'install' in command:
         # Never inherit a user's extra index, trusted-host or pip.ini. The
-        # optional OpenAI Whisper package may require an official PyPI sdist;
-        # other profiles use wheels rather than executing source build hooks.
+        # optional OpenAI Whisper package and hash-pinned legacy bootstrap
+        # permit source builds. Ordinary dependency installs use wheels.
         if '--index-url' not in command:
             command += ['--index-url', 'https://pypi.org/simple']
         command += ['--constraint', str(CODE_DIR / 'constraints_security.txt')]
         if not any(value.startswith('openai-whisper') for value in command):
             command.append('--only-binary=:all:')
+            if source_packages:
+                command.append('--no-binary=' + ','.join(source_packages))
         if is_portable(BASE):
             command += ['--cache-dir', str(BASE / 'Data' / 'pip-cache')]
     print('> ' + ' '.join(command), flush=True)
@@ -180,6 +182,8 @@ def install_profile(profile: str, hardware: str, python: Path) -> None:
 
     p = BY_ID[profile]
     common = ['numpy==2.5.4'] if profile == 'faster-res' else ['numpy==1.26.4']
+    if p.asr != 'openai':
+        common.append('truststore==0.10.5')
     if os.name != 'nt':
         common.append('imageio-ffmpeg')
     if p.asr == 'openai':
@@ -202,12 +206,19 @@ def install_profile(profile: str, hardware: str, python: Path) -> None:
             run(*pip, 'install', *common, *extra)
         run(*pip, 'install', '--no-deps', 'resemblyzer==0.1.4')
     else:
+        # Two legacy dependencies publish source archives only. Authenticate
+        # those exact archives and build them with fixed, wheel-only tooling.
+        run(*pip, 'install', '--force-reinstall', '--require-hashes', '--no-deps',
+            '-r', str(CODE_DIR / 'requirements-pyannote-build.lock'))
+        run(*pip, 'install', '--force-reinstall', '--require-hashes', '--no-deps',
+            '--no-build-isolation', '-r', str(CODE_DIR / 'requirements-pyannote-source.lock'),
+            source_packages=('docopt', 'antlr4-python3-runtime'))
+        constraints = ['--constraint', str(CODE_DIR / 'constraints_pyannote.txt')]
         extra = ['faster-whisper', 'pyannote.audio==3.3.2', 'huggingface-hub==0.36.0']
         if p.asr == 'qwen':
             extra.append('qwen-asr==0.0.6')
-            run(*pip, 'install', '--constraint', str(CODE_DIR / 'constraints_qwen_pya.txt'), *common, *extra)
-        else:
-            run(*pip, 'install', *common, *extra)
+            constraints += ['--constraint', str(CODE_DIR / 'constraints_qwen_pya.txt')]
+        run(*pip, 'install', *constraints, *common, *extra)
 
     run(str(python), '-c',
         'import torch; print("PyTorch", torch.__version__, "CUDA", torch.cuda.is_available()); '
@@ -231,6 +242,11 @@ def install_profile(profile: str, hardware: str, python: Path) -> None:
             'w.close(); b.seek(0); a=decode_audio(b,sampling_rate=16000); '
             'assert len(a)==1600, "音声デコードの長さが一致しません"; '
             'print("方式②: 音声デコード OK")')
+    elif p.diarizer == 'pyannote':
+        run(str(python), '-c',
+            'from pyannote.audio import Pipeline; '
+            'import pyannote.core,pyannote.database,pyannote.metrics,pyannote.pipeline; '
+            'print("pyannote: 依存ライブラリの読み込み OK")')
     if hardware == 'cuda':
         run(str(python), '-c',
             'import torch; assert torch.cuda.is_available(), '

@@ -119,6 +119,7 @@ Game Bar自身が作成する元MP4の保存先はWindows側の設定です。�
 - [画面付き操作ガイド](_internal/docs/USAGE.md)
 - [アプリ同梱の図解ガイド（HTML）](_internal/docs/GUIDE.html)
 - [設定・データの取り扱い](_internal/docs/PRIVACY.md)
+- [Code signing policy](CODE_SIGNING_POLICY.md)（署名申請の準備状況）
 - [検証範囲と実機での確認事項](_internal/docs/VALIDATION.md)
 - [全体点検の結果](_internal/docs/AUDIT.md)
 - [起動方法と互換性の維持方針](_internal/docs/ENTRYPOINTS.md)
@@ -148,3 +149,12 @@ py -3.14 -X utf8 _internal/setup_live_capture.py
 ```
 
 </details>
+
+
+## ライセンス
+
+本プロジェクトのコードは [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0-only）で提供します。
+
+Copyright (c) 2026 Ptcr8-tool
+
+第三者コンポーネントにはそれぞれのライセンスが適用されます。詳細は [第三者ライセンス情報](THIRD_PARTY_NOTICES.md) を参照してください。

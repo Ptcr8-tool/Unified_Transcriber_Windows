@@ -449,8 +449,8 @@ def make_payload(folder: Path, archive: Path) -> dict[str, str]:
 def build(work: Path, output: Path, repository_id: int, source_commit: str) -> Path:
     require_windows()
     version = (REPO / 'VERSION').read_text(encoding='utf-8').strip()
-    if not re.fullmatch(r'\d+\.\d+\.\d+', version):
-        raise ValueError('VERSION must contain a stable semantic version.')
+    if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[a-z])?', version):
+        raise ValueError('VERSION must contain a numeric version or a single-letter revision.')
     if not re.fullmatch(r'[0-9a-f]{40}', source_commit) or repository_id <= 0:
         raise ValueError('A repository ID and exact source commit are required.')
     runtime = work / 'Runtime'

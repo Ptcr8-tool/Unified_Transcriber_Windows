@@ -33,7 +33,7 @@ REQUIRED_PACKAGE_FILES = frozenset((
     'VERSION', 'UnifiedTranscriber.exe', 'Runtime/python.exe',
     'Runtime/pythonw.exe', '_internal/core.py',
 ))
-_VERSION = re.compile(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\Z')
+_VERSION = re.compile(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([a-z]))?\Z')
 _DIGEST = re.compile(r'[0-9a-f]{64}\Z')
 _DEVICES = re.compile(r'(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\..*)?\Z', re.I)
 _PROTECTED_ROOTS = frozenset(x.casefold() for x in (
@@ -86,12 +86,17 @@ class UninstallResult:
     warnings: tuple[str, ...] = ()
 
 
-def version_tuple(value: str) -> tuple[int, int, int]:
-    """Compare stable release numbers numerically; reject ambiguous versions."""
+def version_tuple(value: str) -> tuple[int, int, int, int]:
+    """Compare numbered releases and lettered revisions (base < -a < -b).
+
+    Letter suffixes identify revisions of this app, not SemVer prereleases.
+    A later numeric release always sorts above revisions of an earlier one.
+    """
     match = _VERSION.fullmatch(value) if isinstance(value, str) else None
     if not match or len(value) > 40:
-        raise InstallationError('バージョン番号は X.Y.Z 形式で指定してください。')
-    return tuple(int(part) for part in match.groups())
+        raise InstallationError('バージョン番号は X.Y.Z または X.Y.Z-a 形式で指定してください。')
+    revision = ord(match.group(4)) - ord('a') + 1 if match.group(4) else 0
+    return (*map(int, match.groups()[:3]), revision)
 
 
 def _is_link(path: Path) -> bool:

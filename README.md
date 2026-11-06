@@ -148,3 +148,12 @@ py -3.14 -X utf8 _internal/setup_live_capture.py
 ```
 
 </details>
+
+
+## ライセンス
+
+本プロジェクトのコードは [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0-only）で提供します。
+
+Copyright (c) 2026 Ptcr8-tool
+
+第三者コンポーネントにはそれぞれのライセンスが適用されます。詳細は [第三者ライセンス情報](THIRD_PARTY_NOTICES.md) を参照してください。

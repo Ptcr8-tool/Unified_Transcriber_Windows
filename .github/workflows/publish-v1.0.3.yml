@@ -22,9 +22,13 @@ jobs:
           repo="$GITHUB_REPOSITORY"
           sha="$GITHUB_SHA"
           current=$(gh api "repos/$repo/git/ref/heads/main" --jq '.object.sha')
-          test "$sha" = "$current"
-          version=$(gh api "repos/$repo/contents/VERSION?ref=$sha" --jq '.content' | base64 -d)
-          test "$version" = '1.0.3'
+          echo "Event SHA: $sha; current main SHA: $current"
+          if [ "$sha" != "$current" ]; then echo "Main advanced after this workflow began" >&2; exit 1; fi
+          raw=$(gh api "repos/$repo/contents/VERSION?ref=$sha" --jq '.content')
+          echo "VERSION base64 length: ${#raw}"
+          version=$(printf '%s' "$raw" | base64 -d)
+          printf 'VERSION decoded: <%q>\n' "$version"
+          if [ "$version" != '1.0.3' ]; then echo "Tag version did not match the source" >&2; exit 1; fi
           if gh release view v1.0.3 --repo "$repo" >/dev/null 2>&1; then
             echo 'Already released; will not overwrite a published installer.'
             exit 0

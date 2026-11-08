@@ -33,11 +33,14 @@ jobs:
             echo 'Already released; will not overwrite a published installer.'
             exit 0
           fi
-          existing=$(gh api "repos/$repo/git/ref/tags/v1.0.3" --jq '.object.sha' 2>/dev/null || true)
+          existing=$(gh api "repos/$repo/git/matching-refs/tags/v1.0.3" --jq '.[] | select(.ref == "refs/tags/v1.0.3") | .object.sha')
+          printf 'Matching exact tag SHA: <%q>\n' "$existing"
           if [ -n "$existing" ]; then
-            test "$existing" = "$sha"
+            if [ "$existing" != "$sha" ]; then echo "Tag already points to a different commit" >&2; exit 1; fi
           else
+            echo "Creating tag v1.0.3 at reviewed commit"
             gh api -X POST "repos/$repo/git/refs" -f ref=refs/tags/v1.0.3 -f sha="$sha" --jq '.object.sha'
           fi
+          echo "Dispatching tested Windows release"
           gh workflow run windows-release.yml --repo "$repo" --ref v1.0.3 --field publish_release=true
           echo "Dispatched v1.0.3 from $sha" >> "$GITHUB_STEP_SUMMARY"

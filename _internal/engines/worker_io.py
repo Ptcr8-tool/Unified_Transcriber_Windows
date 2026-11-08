@@ -165,3 +165,77 @@ def write_transcript_atomic(destination: Path, text: str, *, overwrite: bool = T
             stage.unlink()
     finally:
         stage.unlink(missing_ok=True)
+
+
+class TranscriptRecovery:
+    """Append-only checkpoints outside the temporary audio directory.
+
+    Checkpoints are explicitly incomplete and must never be mistaken for a
+    finished transcript. Failure details are recorded before WAV cleanup.
+    """
+
+    def __init__(self, destination: Path):
+        import uuid
+        self.destination = Path(destination)
+        prefix = '.' + self.destination.stem[:64] + '.' + uuid.uuid4().hex[:10]
+        self.partial = self.destination.with_name(prefix + '.partial')
+        self.failure = self.destination.with_name(prefix + '.error.log')
+        self.wrote = False
+        self.error_recorded = False
+        self._warned = False
+
+    def append(self, text: str) -> bool:
+        if not text or not text.strip():
+            return False
+        try:
+            self.partial.parent.mkdir(parents=True, exist_ok=True)
+            with self.partial.open('a', encoding='utf-8', newline='\n') as stream:
+                if not self.wrote:
+                    stream.write('途中の認識結果です。未完了の区間や暫定の話者名を含みます。\n\n')
+                stream.write(text.rstrip('\n') + '\n\n')
+                stream.flush()
+                os.fsync(stream.fileno())
+            if not self.wrote:
+                print(f'途中結果の復旧ファイル: {self.partial}', flush=True)
+            self.wrote = True
+            return True
+        except OSError as exc:
+            if not self._warned:
+                print(f'途中結果の保存に失敗しました（{type(exc).__name__}）。',
+                      file=__import__('sys').stderr, flush=True)
+                self._warned = True
+            return False
+
+    def record_error(self, exc: Exception) -> None:
+        """Preserve the original exception before cleanup can be interrupted."""
+        import re
+        import sys
+        self.error_recorded = True
+        message = str(exc)
+        for key in ('HF_TOKEN', 'HUGGING_FACE_HUB_TOKEN', 'HUGGINGFACEHUB_API_TOKEN'):
+            token = os.environ.get(key, '')
+            if token:
+                message = message.replace(token, '[REDACTED]')
+        message = re.sub(r'hf_[A-Za-z0-9]{8,}', '[REDACTED_HF_TOKEN]', message)
+        detail = f'{type(exc).__name__}: {message[:4000]}\n'
+        if self.wrote:
+            detail += f'途中結果: {self.partial}\n'
+        try:
+            self.failure.parent.mkdir(parents=True, exist_ok=True)
+            with self.failure.open('a', encoding='utf-8', newline='\n') as stream:
+                stream.write(detail)
+                stream.flush()
+                os.fsync(stream.fileno())
+            print(f'障害情報を保存しました: {self.failure}', file=sys.stderr, flush=True)
+            if self.wrote:
+                print(f'途中結果を保持しました: {self.partial}', file=sys.stderr, flush=True)
+        except OSError:
+            print('障害情報をファイルに保存できませんでした。', file=sys.stderr, flush=True)
+        print(f'エラー: {detail.rstrip()}', file=sys.stderr, flush=True)
+
+    def finalize(self) -> None:
+        """Final output is already durable. Cleanup failure is non-fatal."""
+        try:
+            self.partial.unlink(missing_ok=True)
+        except OSError:
+            pass

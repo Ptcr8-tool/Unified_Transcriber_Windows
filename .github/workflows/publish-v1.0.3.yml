@@ -1,0 +1,39 @@
+name: One-time v1.0.3 release kickoff
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-v1.0.3.yml']
+permissions: {}
+
+jobs:
+  kickoff:
+    if: github.repository == 'Ptcr8-tool/Unified_Transcriber_Windows' && github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Tag exact reviewed commit and dispatch Windows release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          sha="$GITHUB_SHA"
+          current=$(gh api "repos/$repo/git/ref/heads/main" --jq '.object.sha')
+          test "$sha" = "$current"
+          version=$(gh api "repos/$repo/contents/VERSION?ref=$sha" --jq '.content' | base64 -d)
+          test "$version" = '1.0.3'
+          if gh release view v1.0.3 --repo "$repo" >/dev/null 2>&1; then
+            echo 'Already released; will not overwrite a published installer.'
+            exit 0
+          fi
+          existing=$(gh api "repos/$repo/git/ref/tags/v1.0.3" --jq '.object.sha' 2>/dev/null || true)
+          if [ -n "$existing" ]; then
+            test "$existing" = "$sha"
+          else
+            gh api -X POST "repos/$repo/git/refs" -f ref=refs/tags/v1.0.3 -f sha="$sha" --jq '.object.sha'
+          fi
+          gh workflow run windows-release.yml --repo "$repo" --ref v1.0.3 --field publish_release=true
+          echo "Dispatched v1.0.3 from $sha" >> "$GITHUB_STEP_SUMMARY"

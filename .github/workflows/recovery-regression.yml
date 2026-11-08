@@ -1,0 +1,39 @@
+name: Check v1.0.3 recovery
+on:
+  push:
+    branches:
+      - release/v1.0.3
+
+permissions:
+  contents: read
+
+jobs:
+  recovery:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: _internal
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+      - name: Compile all source files
+        shell: pwsh
+        run: |
+          python -m compileall -q _internal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install test dependency
+        shell: pwsh
+        run: |
+          python -m pip install --only-binary=:all: numpy==1.26.4 truststore==0.10.5
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test recovery and legacy engine behavior
+        shell: pwsh
+        run: |
+          python -m unittest -v tests.test_transcript_recovery tests.test_engine_worker_io tests.test_qwen_regression
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

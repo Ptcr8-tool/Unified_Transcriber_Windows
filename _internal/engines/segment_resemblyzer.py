@@ -3,13 +3,13 @@ try:
     from .caption_segments import split_timed_items
     from .media_runtime import checked_ffmpeg
     from .cuda_runtime import initialize_cuda_libraries
-    from .worker_io import extract_pcm_audio, read_pcm_for_whisper, write_transcript_atomic, transcript_separator
+    from .worker_io import extract_pcm_audio, read_pcm_for_whisper, write_transcript_atomic, transcript_separator, TranscriptRecovery
     from .asr_hints import options_for as asr_hint_options
 except ImportError:  # standalone Python invocation from the engines directory
     from caption_segments import split_timed_items
     from media_runtime import checked_ffmpeg
     from cuda_runtime import initialize_cuda_libraries
-    from worker_io import extract_pcm_audio, read_pcm_for_whisper, write_transcript_atomic, transcript_separator
+    from worker_io import extract_pcm_audio, read_pcm_for_whisper, write_transcript_atomic, transcript_separator, TranscriptRecovery
     from asr_hints import options_for as asr_hint_options
 
 import argparse
@@ -114,7 +114,8 @@ def emit_gui_progress(stage: str, completed: float, total: float, text: str = ''
     pace_if_needed(stage)
 
 def transcribe_whisper_words(
-    audio_path: Path, model_size: str, device: str, compute_type: str | None
+    audio_path: Path, model_size: str, device: str, compute_type: str | None,
+    on_progress=None,
 ) -> list[TranscriptItem]:
     initialize_cuda_libraries(device)
     try:
@@ -143,7 +144,7 @@ def transcribe_whisper_words(
     words: list[TranscriptItem] = []
     fallback_segments: list[TranscriptItem] = []
     print(f"音声認識を実行中 (検出言語: {info.language})...")
-    for segment in segments:
+    for segment_number, segment in enumerate(segments, start=1):
         segment_text = (segment.text or "").strip()
         emit_gui_progress('asr', float(segment.end), float(getattr(info, 'duration', 0) or 0),
                           segment_text, f'{float(segment.end):.1f}秒まで認識')
@@ -162,6 +163,10 @@ def transcribe_whisper_words(
                             text,
                         )
                     )
+        if on_progress is not None and segment_number % 10 == 0:
+            on_progress(list(fallback_segments))
+    if on_progress is not None:
+        on_progress(list(fallback_segments))
     return words if words else fallback_segments
 
 
@@ -241,6 +246,7 @@ def transcribe_qwen_words(
     device: str,
     chunk_dir: Path,
     max_new_tokens: int,
+    on_progress=None,
 ) -> list[TranscriptItem]:
     try:
         import torch
@@ -344,6 +350,8 @@ def transcribe_qwen_words(
                     UNALIGNED_SPEAKER,
                     UNALIGNED_PREFIX + text_without_timing,
                 ))
+            if on_progress is not None and items:
+                on_progress(list(items))
     except RuntimeError:
         raise
     except Exception as exc:
@@ -688,45 +696,71 @@ def main() -> int:
         print("出力TXTに入力ファイルと同じパスは指定できません。", file=sys.stderr)
         return 2
 
+    recovery = TranscriptRecovery(output)
+    last_saved = 0
+
+    def save_partial(items):
+        nonlocal last_saved
+        if len(items) <= last_saved:
+            return
+        try:
+            draft = merge_items(items[last_saved:], [], args.merge_gap,
+                                caption_max_chars=args.caption_max_chars,
+                                caption_max_seconds=args.caption_max_seconds)
+            text = render_transcript(draft, getattr(args, 'blank_lines', 0))
+            if recovery.append(text):
+                last_saved = len(items)
+        except Exception as exc:
+            print(f'途中結果の変換に失敗しました（{type(exc).__name__}）。',
+                  file=sys.stderr, flush=True)
+
     try:
         ffmpeg = check_ffmpeg()
         with tempfile.TemporaryDirectory(prefix="speaker_transcribe_") as temp_dir:
-            temp_path = Path(temp_dir)
-            wav_path = temp_path / "audio_16k_mono.wav"
-            print(f"音声を準備中: {source.name}")
-            extract_audio(ffmpeg, source, wav_path)
+            try:
+                temp_path = Path(temp_dir)
+                wav_path = temp_path / "audio_16k_mono.wav"
+                print(f"音声を準備中: {source.name}")
+                extract_audio(ffmpeg, source, wav_path)
 
-            if args.asr_backend == "qwen":
-                items = transcribe_qwen_words(
+                if args.asr_backend == "qwen":
+                    items = transcribe_qwen_words(
+                        wav_path,
+                        args.qwen_model,
+                        args.qwen_aligner,
+                        args.device,
+                        temp_path / "qwen_chunks",
+                        args.qwen_max_new_tokens,
+                        on_progress=save_partial,
+                    )
+                else:
+                    items = transcribe_whisper_words(wav_path, args.model, args.device, args.compute_type,
+                                                         on_progress=save_partial)
+
+                release_cuda_memory()
+                print("Resemblyzer + scikit-learnで話者分離中...")
+                warning_counts = {}
+                turns = get_resemblyzer_speaker_turns(
                     wav_path,
-                    args.qwen_model,
-                    args.qwen_aligner,
+                    args.max_speakers,
                     args.device,
-                    temp_path / "qwen_chunks",
-                    args.qwen_max_new_tokens,
+                    args.segment_length,
+                    diarization_unit=args.diarization_unit,
+                    items=items,
+                    speakers=args.speakers,
+                    threshold=args.threshold,
+                    warning_counts=warning_counts,
                 )
-            else:
-                items = transcribe_whisper_words(wav_path, args.model, args.device, args.compute_type)
+                final_items = merge_items(items, turns, args.merge_gap,
+                            caption_max_chars=args.caption_max_chars, caption_max_seconds=args.caption_max_seconds)
+                transcript = render_transcript(final_items, getattr(args, "blank_lines", 0))
 
-            release_cuda_memory()
-            print("Resemblyzer + scikit-learnで話者分離中...")
-            warning_counts = {}
-            turns = get_resemblyzer_speaker_turns(
-                wav_path,
-                args.max_speakers,
-                args.device,
-                args.segment_length,
-                diarization_unit=args.diarization_unit,
-                items=items,
-                speakers=args.speakers,
-                threshold=args.threshold,
-                warning_counts=warning_counts,
-            )
-            final_items = merge_items(items, turns, args.merge_gap,
-                        caption_max_chars=args.caption_max_chars, caption_max_seconds=args.caption_max_seconds)
-            transcript = render_transcript(final_items, getattr(args, "blank_lines", 0))
+                write_transcript_atomic(output, transcript + ('\n' if transcript else ''))
+            except Exception as exc:
+                recovery.record_error(exc)
+                raise
+        recovery.finalize()
 
-        write_transcript_atomic(output, transcript + ('\n' if transcript else ''))
         failed_count = warning_counts.get('failed', 0)
         if failed_count:
             print(f"一部完了: {output}（話者特徴量の取得失敗 {failed_count}件）")
@@ -736,7 +770,8 @@ def main() -> int:
             print("注意: 話者区間を検出できませんでした。出力の話者名はUNKNOWNになる場合があります。")
         return 0
     except Exception as exc:
-        print(f"エラー: {exc}", file=sys.stderr)
+        if not recovery.error_recorded:
+            recovery.record_error(exc)
         return 1
 
 

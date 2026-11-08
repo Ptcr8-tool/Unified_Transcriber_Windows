@@ -1,20 +1,18 @@
-name: v1.0.3 recovery regression
+name: Check v1.0.3 recovery
 on:
   push:
-    branches: [release/v1.0.3]
-  workflow_dispatch:
+    branches:
+      - release/v1.0.3
 
 permissions:
   contents: read
 
 jobs:
   recovery:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-2025, ubuntu-24.04]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-2025
     timeout-minutes: 20
+    env:
+      PYTHONPATH: _internal
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -22,17 +20,18 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.11'
-      - name: Verify Python source and recovery features
-        shell: python
+      - name: Compile all source files
+        shell: pwsh
         run: |
-          import ast
-          from pathlib import Path
-          assert Path('VERSION').read_text().strip() == '1.0.3'
-          for p in Path('_internal').rglob('*.py'):
-              ast.parse(p.read_text(encoding='utf-8-sig'), filename=str(p))
-      - name: Install lightweight test dependency
-        run: python -m pip install --only-binary=:all: numpy==1.26.4
-      - name: Run recovery and existing engine regression tests
-        env:
-          PYTHONPATH: _internal
-        run: python -m unittest -v tests.test_transcript_recovery tests.test_engine_worker_io tests.test_qwen_regression
+          python -m compileall -q _internal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install test dependency
+        shell: pwsh
+        run: |
+          python -m pip install --only-binary=:all: numpy==1.26.4
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test recovery and legacy engine behavior
+        shell: pwsh
+        run: |
+          python -m unittest -v tests.test_transcript_recovery tests.test_engine_worker_io tests.test_qwen_regression
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

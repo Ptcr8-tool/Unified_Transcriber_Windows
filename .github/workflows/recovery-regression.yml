@@ -13,6 +13,8 @@ jobs:
     timeout-minutes: 20
     env:
       PYTHONPATH: _internal
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:

@@ -54,6 +54,21 @@ def main():
                 xdisplay=os.environ.get('DISPLAY')).save(images / name)
             print(name)
 
+        def capture_menu(name, label):
+            """Take a desktop capture of the real anchored overlay over the root."""
+            button = next(item for item in app.ui.drawer_buttons if item.cget('text') == label)
+            button.toggle()
+            root.update_idletasks()
+            root.update()
+            assert button.opened and button.panel is not None
+            button.panel.lift()
+            root.update_idletasks()
+            x, y = root.winfo_rootx(), root.winfo_rooty()
+            ImageGrab.grab(bbox=(x, y, x+root.winfo_width(), y+root.winfo_height()),
+                xdisplay=os.environ.get('DISPLAY')).save(images / name)
+            print(name)
+            button.close()
+            root.update()
         def finish(win):
             for job in root.tk.call('after', 'info'):
                 try:
@@ -76,8 +91,8 @@ def main():
             app.tree.set(key, 'destination', 'C:/Sample/Transcriptions')
         app.status.set('サンプル会議の文字起こしが完了しました。')
         for widget, value in ((app.recognized_box,
-            '[00:00:01] SPEAKER_00: サンプル会議を開始します。\n\n'
-            '[00:00:05] SPEAKER_01: 本日の確認事項を共有します。\n\n'
+            '[00:00:01] SPEAKER_00: サンプル会議を開始します。\n'
+            '[00:00:05] SPEAKER_01: 本日の確認事項を共有します。\n'
             '[00:00:10] SPEAKER_00: 次の項目に進みます。\n'),
             (app.logbox, 'sample_meeting_01.wav\n文字起こしが完了しました。\n'
              '保存先: C:/Sample/Transcriptions\n')):
@@ -86,13 +101,17 @@ def main():
             widget.insert('end', value)
             widget.configure(state='disabled')
         capture('main-light.png', root)
+        capture_menu('menu-light.png', '設定・診断')
+        capture_menu('menu-tools.png', 'ツール')
         app.ui.theme_var.set('dark')
         app.ui._apply_appearance(True)
         capture('main-dark.png', root)
+        capture_menu('menu-dark.png', '設定・診断')
         app.ui.theme_var.set('light')
         app.ui._apply_appearance(False)
         root.geometry('900x640+20+20')
         capture('main-compact.png', root)
+        capture_menu('menu-compact.png', '設定・診断')
         root.geometry('1180x900+20+20')
         root.update()
         dialog = gui.SettingsDialog(app)
@@ -126,7 +145,7 @@ def main():
             '[00:00:10] SPEAKER_00: 次の項目に進みます。\n', encoding='utf-8')
         dialog = gui.SpeakerEditDialog(app, sample)
         dialog.input.set('C:/Sample/Transcriptions/sample_meeting.txt')
-        dialog.output.set('C:/Sample/sample_meeting_names.txt')
+        dialog.output.set('C:/Sample/Transcriptions/sample_meeting_names.txt')
         for speaker, variable in dialog.rename_vars.items():
             variable.set('話者A' if speaker == 'SPEAKER_00' else '話者B')
         dialog._expand_all()

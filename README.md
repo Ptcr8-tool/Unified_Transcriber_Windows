@@ -11,6 +11,51 @@ v1.0.3では、Hugging Faceのモデル取得、Windowsのキャッシュ動作�
 
 公開リリースにある `Unified_Transcriber_Setup_v1.0.3.exe` と `SHA256SUMS.txt` を確認してください。GitHubのビルド出所証明も同梱しています。
 
+## 画面プレビュー（v1.0.3）
+
+現行のTk画面を**サンプルデータ**で再撮影しました。画像中の名前・日時・パス・認識文は架空のものです。仮想デスクトップで撮影しているため、Windows実機とはフォントやウィンドウ枠の細部が異なる場合があります。
+
+![v1.0.3のメイン画面。上部が録音・録画とメニュー、中央が処理キュー、下部が認識プレビューと詳細ログです。](_internal/docs/images/main-light.png)
+
+<details>
+<summary>ダーク表示・コンパクト表示（900×640）を見る</summary>
+
+| ダーク表示 | 小さいウィンドウ |
+| :---: | :---: |
+| ![v1.0.3のダーク表示](_internal/docs/images/main-dark.png) | ![v1.0.3の900×640表示](_internal/docs/images/main-compact.png) |
+
+</details>
+
+### 操作の親子関係がわかる新メニュー
+
+「録音・録画」「ツール」は**見出しと説明付きの操作を一覧表示**。「設定・診断」は**左で分類、右で操作**を選びます。メニューは作業画面に重ねて開き、下の一覧を押し下げません。
+
+| ツール（操作を直接選択） | 設定・診断（左カテゴリ＋右の操作一覧） |
+| :---: | :---: |
+| ![v1.0.3のツールメニュー](_internal/docs/images/menu-tools.png) | ![v1.0.3の設定・診断メニュー](_internal/docs/images/menu-light.png) |
+
+<details>
+<summary>メニューのダーク表示・小画面表示を見る</summary>
+
+| ダーク表示 | 小さいウィンドウ |
+| :---: | :---: |
+| ![設定・診断メニューのダーク表示](_internal/docs/images/menu-dark.png) | ![設定・診断メニューの900×640表示](_internal/docs/images/menu-compact.png) |
+
+</details>
+
+<details>
+<summary>詳細設定・録音設定・話者名編集の画面を見る</summary>
+
+| 詳細設定 | 話者名編集 |
+| :---: | :---: |
+| ![詳細設定・保存先と出力形式](_internal/docs/images/settings.png) | ![話者名編集・元ファイルと同じフォルダーへ別名保存](_internal/docs/images/guide-speakers.png) |
+
+![マイクとPC音の録音設定。入力元、L/R分離、ライブ認識、保存形式を選べます。](_internal/docs/images/guide-recording.png)
+
+</details>
+
+各操作の手順は[画面付き操作ガイド](_internal/docs/USAGE.md)をご覧ください。
+
 ## はじめる — 最初のダウンロードはexeひとつ
 
 1. リリースページから対応するセットアップexeを保存して開きます。PythonやAIライブラリが未導入のPCでも、同梱ランタイムで本体を起動できます。
@@ -27,13 +72,15 @@ CUDAの事前表示は、NVIDIA GPU・ドライバー情報から見た利用の
 <details>
 <summary>セットアップ画面を見る</summary>
 
-![インストール先と導入内容を選ぶセットアップの説明図。AIセットは任意です。](_internal/docs/images/guide-install.svg)
+![v1.0.3のセットアップ画面。インストール先、保存先、スタートメニュー、任意のAIセットを選択します。](_internal/docs/images/guide-install.png)
+
+[導入項目を簡略化した説明図を見る](_internal/docs/images/guide-install.svg)
 
 </details>
 
 ## メイン画面の見方
 
-![メイン画面。上部で録音や認識方式を選び、中央にファイルを追加。左下が認識文、右下が詳細ログ、最下部が開始・停止です。](_internal/docs/images/main-light.png)
+上部の[最新画面プレビュー](#画面プレビューv103)で、全体画面とダーク表示・コンパクト表示を確認できます。
 
 | 場所 | 主な操作 |
 | --- | --- |
@@ -64,7 +111,7 @@ CUDAの事前表示は、NVIDIA GPU・ドライバー情報から見た利用の
 - 文字起こしの発話間の空行は既定0行になり、設定で0〜10行に変更できます。
 - 話者名編集後のTXT／CSVは、元のファイルと同じフォルダーに別名保存します。
 
-![ツールメニュー。太字の分類見出しの下に、説明付きの操作が並びます。](_internal/docs/images/menu-tools.png)
+メニューの画像は[画面プレビュー](#画面プレビューv103)にまとめています。
 
 詳細は[リリース情報](_internal/docs/CHANGELOG.md)を参照してください。
 
@@ -142,7 +189,7 @@ Game Bar自身が作成する元MP4の保存先はWindows側の設定です。�
 - [第三者ソフトウェアとライセンス情報](THIRD_PARTY_NOTICES.md)
 - [リリース情報](_internal/docs/CHANGELOG.md)
 
-画面例は一部が開発中の表示で、最新の画面と異なる場合があります。ファイル名・本文・日時・名前は架空のサンプルです。Windowsの録音デバイス・Game Bar・GPUでの動作確認範囲は検証資料を参照してください。
+画面例はv1.0.3のUIを仮想デスクトップで再撮影したものです。Windowsのフォントや表示倍率による違いはありますが、示している操作は現行版に基づきます。ファイル名・本文・日時・名前は架空のサンプルです。Windowsの録音デバイス・Game Bar・GPUでの動作確認範囲は検証資料を参照してください。
 
 <details>
 <summary>同梱Python・依存ライブラリの対応範囲</summary>

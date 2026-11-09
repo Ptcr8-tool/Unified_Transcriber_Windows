@@ -102,6 +102,37 @@ def main():
         capture('main-compact.png', root)
         root.geometry('1180x900+20+20')
         root.update()
+
+        def capture_open_menu(name, label, *, group=None, panel_only=False):
+            trigger = next(button for button in app.ui.drawer_buttons
+                           if button.cget('text') == label)
+            trigger.toggle()
+            if group:
+                trigger.show_group(group)
+            root.update_idletasks()
+            root.update()
+            assert trigger.opened and trigger.panel.winfo_ismapped()
+            target = trigger.panel if panel_only else root
+            x, y = target.winfo_rootx(), target.winfo_rooty()
+            ImageGrab.grab(bbox=(x, y, x+target.winfo_width(), y+target.winfo_height()),
+                xdisplay=os.environ.get('DISPLAY')).save(images / name)
+            print(name)
+            trigger.close()
+            root.update()
+
+        capture_open_menu('menu-light.png', '設定・診断', group='操作・設定')
+        capture_open_menu('menu-tools.png', 'ツール', panel_only=True)
+        app.ui.theme_var.set('dark')
+        app.ui._apply_appearance(True)
+        capture_open_menu('menu-dark.png', '設定・診断', group='操作・設定')
+        app.ui.theme_var.set('light')
+        app.ui._apply_appearance(False)
+        root.geometry('900x640+20+20')
+        root.update()
+        capture_open_menu('menu-compact.png', '設定・診断', group='操作・設定')
+        root.geometry('1180x900+20+20')
+        root.update()
+
         dialog = gui.SettingsDialog(app)
         dialog.output_tab.master.select(dialog.output_tab)
         dialog.win.geometry('850x780+20+20')

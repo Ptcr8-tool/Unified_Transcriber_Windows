@@ -1,4 +1,5 @@
 name: Refresh README screenshots from current Tk widgets
+# Re-run after using Windows sample paths in setup screenshots.
 
 on:
   push:

@@ -45,8 +45,9 @@ def main():
         root.geometry('1180x900+20+20')
         root.update()
 
-        def capture(name, win):
-            win.lift()
+        def capture(name, win, *, lift=True):
+            if lift:
+                win.lift()
             root.update_idletasks()
             root.update()
             x, y = win.winfo_rootx(), win.winfo_rooty()
@@ -86,13 +87,38 @@ def main():
             widget.insert('end', value)
             widget.configure(state='disabled')
         capture('main-light.png', root)
+
+        # Capture the current top menus from real widgets, not from a drawing
+        # or from the legacy nested navigation screenshot.  The floating
+        # Toplevel must remain above the root for full-window captures.
+        def capture_menu(label, filename, *, category=None, panel_only=False):
+            button = next(item for item in app.ui.drawer_buttons
+                          if item.cget('text') == label)
+            button.toggle()
+            root.update_idletasks()
+            root.update()
+            if category is not None:
+                button.show_group(category)
+                root.update()
+            if panel_only:
+                capture(filename, button.panel)
+            else:
+                button.panel.lift()
+                capture(filename, root, lift=False)
+            button.close()
+            root.update()
+
+        capture_menu('設定・診断', 'menu-light.png', category='操作・設定')
+        capture_menu('ツール', 'menu-tools.png', panel_only=True)
         app.ui.theme_var.set('dark')
         app.ui._apply_appearance(True)
         capture('main-dark.png', root)
+        capture_menu('設定・診断', 'menu-dark.png', category='操作・設定')
         app.ui.theme_var.set('light')
         app.ui._apply_appearance(False)
         root.geometry('900x640+20+20')
         capture('main-compact.png', root)
+        capture_menu('設定・診断', 'menu-compact.png', category='操作・設定')
         root.geometry('1180x900+20+20')
         root.update()
         dialog = gui.SettingsDialog(app)
@@ -126,7 +152,8 @@ def main():
             '[00:00:10] SPEAKER_00: 次の項目に進みます。\n', encoding='utf-8')
         dialog = gui.SpeakerEditDialog(app, sample)
         dialog.input.set('C:/Sample/Transcriptions/sample_meeting.txt')
-        dialog.output.set('C:/Sample/sample_meeting_names.txt')
+        root.update_idletasks()
+        dialog.output.set('C:/Sample/Transcriptions/sample_meeting_names.txt')
         for speaker, variable in dialog.rename_vars.items():
             variable.set('話者A' if speaker == 'SPEAKER_00' else '話者B')
         dialog._expand_all()

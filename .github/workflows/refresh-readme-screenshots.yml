@@ -6,6 +6,7 @@ on:
       - docs/refresh-readme-v103
     paths:
       - .github/workflows/refresh-readme-screenshots.yml
+      - _internal/tools/create_guide_screens.py
 
 permissions:
   contents: write

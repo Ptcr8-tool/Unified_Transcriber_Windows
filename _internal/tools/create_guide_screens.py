@@ -76,8 +76,8 @@ def main():
             app.tree.set(key, 'destination', 'C:/Sample/Transcriptions')
         app.status.set('サンプル会議の文字起こしが完了しました。')
         for widget, value in ((app.recognized_box,
-            '[00:00:01] SPEAKER_00: サンプル会議を開始します。\n\n'
-            '[00:00:05] SPEAKER_01: 本日の確認事項を共有します。\n\n'
+            '[00:00:01] SPEAKER_00: サンプル会議を開始します。\n'
+            '[00:00:05] SPEAKER_01: 本日の確認事項を共有します。\n'
             '[00:00:10] SPEAKER_00: 次の項目に進みます。\n'),
             (app.logbox, 'sample_meeting_01.wav\n文字起こしが完了しました。\n'
              '保存先: C:/Sample/Transcriptions\n')):
@@ -126,7 +126,7 @@ def main():
             '[00:00:10] SPEAKER_00: 次の項目に進みます。\n', encoding='utf-8')
         dialog = gui.SpeakerEditDialog(app, sample)
         dialog.input.set('C:/Sample/Transcriptions/sample_meeting.txt')
-        dialog.output.set('C:/Sample/sample_meeting_names.txt')
+        dialog.output.set('C:/Sample/Transcriptions/sample_meeting_names.txt')
         for speaker, variable in dialog.rename_vars.items():
             variable.set('話者A' if speaker == 'SPEAKER_00' else '話者B')
         dialog._expand_all()

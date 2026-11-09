@@ -50,7 +50,7 @@ figure{margin:24px 0 30px}.shot{position:relative;border:1px solid var(--line);b
       <li><strong>CUDAの表示を確認してから、実行環境とモデルを選ぶ</strong><p>NVIDIA GPU・ドライバーによる利用の見込みを表示します。CPU／GPUと、モデル（既定は<code>large-v3-turbo</code>）を選びます。実際のCUDA利用は環境導入後の診断で確認してください。追加取得にはインターネットと十分な空き容量が必要です。</p></li>
       <li><strong>アプリを起動し、短い音声で確認する</strong><p>新規設定の認識方式は「② faster-whisper + Resemblyzer（推奨）」です。最初は数十秒の録音で、保存先と認識結果を確認しましょう。既存設定では選択済みの方式を保持します。</p></li>
     </ol>
-    <figure><div class="shot"><img src="images/guide-install.svg" width="880" alt="セットアップ項目の説明図。インストール先、共通保存先、プログラム登録、録音環境、AIセットを選べる。" loading="lazy"></div><figcaption class="caption">セットアップ項目の説明図。AIセットは任意です。<a href="images/guide-install.svg">図を大きく開く</a></figcaption></figure>
+    <figure><div class="shot"><img src="images/guide-install.png" width="880" alt="v1.0.3のセットアップ画面。インストール先、共通保存先、プログラム登録、録音環境、AIセットを選べる。" loading="lazy"></div><figcaption class="caption">セットアップ項目の説明図。AIセットは任意です。<a href="images/guide-install.png">図を大きく開く</a></figcaption></figure>
     <div class="table-wrap"><table><thead><tr><th>導入時の選択</th><th>選ぶとできること</th><th>後から変更</th></tr></thead><tbody><tr><td>プログラム一覧に登録</td><td>Windowsのアプリ一覧から見つけやすくします。</td><td>セットアップexe</td></tr><tr><td>スタートメニューに追加</td><td>アイコンからアプリを起動できます。</td><td>セットアップexe</td></tr><tr><td>録音環境をセットアップ</td><td>マイク・PC音の録音を準備します。</td><td>「録音・録画」のセットアップ</td></tr><tr><td>推奨AIセット（②）</td><td>②の認識方式と選んだモデルで文字起こしを始められます。</td><td>「設定・診断」の一括セットアップ</td></tr></tbody></table></div>
     <p class="note">追加の録音環境やAIモデルの取得に失敗しても、導入済みのアプリは残ります。接続や空き容量を確認し、アプリ内のセットアップから再試行できます。</p>
     <p class="note"><strong>既存のインストールがある場合</strong>インストール済みの版がこのセットアップより新しい番号の場合は通常の更新として導入できません。設定・モデル・録音・結果を別の場所へ退避し、別フォルダーへの導入を検討してください。インストール先内のデータを削除する前に必ず退避してください。古い版から更新した後は、「録音・録画 → 取り込み・環境 → 録音・録画のセットアップ…」を再実行して、音声・動画処理ツールも更新してください。利用中の認識方式を一括セットアップし直す方法でも更新できます。設定やモデルは保持します。未導入の案内が出た場合も同じ操作で修復します。</p>
@@ -157,7 +157,7 @@ figure{margin:24px 0 30px}.shot{position:relative;border:1px solid var(--line);b
     <div class="table-wrap"><table><thead><tr><th>インストール済みの版</th><th>選べる操作</th><th>目的</th></tr></thead><tbody><tr><td>セットアップexeより古い</td><td>更新</td><td>設定やデータを残して新しい版へ進む</td></tr><tr><td>同じ版</td><td>修復／アンインストール／キャンセル</td><td>不足したアプリファイルを直す、削除する、作業をやめる</td></tr><tr><td>より新しい版</td><td>新しい版の保守プログラムで修復／アンインストール／キャンセル</td><td>古いセットアップによる上書きはしない</td></tr></tbody></table></div>
     <p>インストール先にある<code>UnifiedTranscriberSetup.exe</code>からも保守画面を開けます。古いセットアップexeから新しいアプリを上書きして、意図せず前の版へ戻すことはありません。</p>
     <p>手動で更新・修復・アンインストールする場合は、先に通知領域アイコンの「アプリを終了」で完全に終了します。保守画面からアンインストールすると、このインストール先の自動起動登録も解除します。</p>
-    <figure><div class="shot"><img src="images/guide-maintenance.svg" width="880" alt="同じ版が入っている場合の修復とアンインストールの説明図。" loading="lazy"></div><figcaption class="caption">同じ版が入っている場合の保守項目の説明図。<a href="images/guide-maintenance.svg">図を大きく開く</a></figcaption></figure>
+    <figure><div class="shot"><img src="images/guide-maintenance.png" width="880" alt="同じ版が入っている場合の修復とアンインストールの説明図。" loading="lazy"></div><figcaption class="caption">v1.0.3の保守画面。<a href="images/guide-maintenance.png">図を大きく開く</a></figcaption></figure>
     <h3>アプリを削除する</h3>
     <p>アプリを終了し、保守画面で「アンインストール」を選びます。削除するフォルダーを確認して進めると、アプリと、そのフォルダー内に保存した設定・実行環境・モデル・出力を削除します。必要な録音や結果は、先に別のフォルダーへ退避してください。</p>
     <p class="note warning"><strong>フォルダーを手動で削除する場合</strong>アプリの実体はインストール先フォルダーにまとまっています。ただし、登録したプログラム一覧やショートカットの項目がWindows側に残ることがあります。これらも片付けるには、保守画面からアンインストールしてください。ドキュメントなどインストール先の外に保存した録音・結果・ログ、旧版がユーザーフォルダーへ保存した設定は、そのまま残ります。</p>

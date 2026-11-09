@@ -1,7 +1,7 @@
 """Create documentation screenshots from real widgets and synthetic data.
 
-Run in a desktop or virtual display with Tk and Pillow installed. No recording,
-AI inference, downloads, registry writes or configuration saves are performed.
+Run in a desktop or virtual display with Tk and Pillow installed. No recording, AI inference, registry writes or configuration saves are
+performed. The pinned, SHA-256-verified TkDND wheel may be downloaded for capture.
 """
 from contextlib import ExitStack
 from pathlib import Path
@@ -16,6 +16,12 @@ from PIL import ImageGrab
 
 CODE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(CODE_DIR))
+from dnd_support import ensure_drag_drop
+
+# Documentation captures run against the same SHA-256-verified TkDND wheel
+# as a normal installed application; never show a broken D&D status.
+if not ensure_drag_drop():
+    raise RuntimeError('Pinned TkDND wheel must be available to capture screenshots')
 import unified_gui as gui
 from core import Config
 
@@ -25,7 +31,8 @@ def main():
     images.mkdir(parents=True, exist_ok=True)
     with ExitStack() as stack:
         folder = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix='sample-guide-')))
-        config = Config(profile='faster-res', output_dir='C:/Sample/Transcriptions', theme_mode='light',
+        config = Config(profile='faster-res', output_dir='C:/Sample/Transcriptions',
+            output_root='C:/Sample/Documents/UnifiedTranscriber', theme_mode='light',
             onboarding_seen=True, capture_setup_complete=True,
             live_recording_dir='C:/Sample/Recordings', gamebar_captures_dir='C:/Sample/Captures')
         stack.enter_context(patch.dict(os.environ, {'HF_TOKEN': ''}))
@@ -54,21 +61,6 @@ def main():
                 xdisplay=os.environ.get('DISPLAY')).save(images / name)
             print(name)
 
-        def capture_menu(name, label):
-            """Take a desktop capture of the real anchored overlay over the root."""
-            button = next(item for item in app.ui.drawer_buttons if item.cget('text') == label)
-            button.toggle()
-            root.update_idletasks()
-            root.update()
-            assert button.opened and button.panel is not None
-            button.panel.lift()
-            root.update_idletasks()
-            x, y = root.winfo_rootx(), root.winfo_rooty()
-            ImageGrab.grab(bbox=(x, y, x+root.winfo_width(), y+root.winfo_height()),
-                xdisplay=os.environ.get('DISPLAY')).save(images / name)
-            print(name)
-            button.close()
-            root.update()
         def finish(win):
             for job in root.tk.call('after', 'info'):
                 try:
@@ -101,19 +93,46 @@ def main():
             widget.insert('end', value)
             widget.configure(state='disabled')
         capture('main-light.png', root)
-        capture_menu('menu-light.png', '設定・診断')
-        capture_menu('menu-tools.png', 'ツール')
         app.ui.theme_var.set('dark')
         app.ui._apply_appearance(True)
         capture('main-dark.png', root)
-        capture_menu('menu-dark.png', '設定・診断')
         app.ui.theme_var.set('light')
         app.ui._apply_appearance(False)
         root.geometry('900x640+20+20')
         capture('main-compact.png', root)
-        capture_menu('menu-compact.png', '設定・診断')
         root.geometry('1180x900+20+20')
         root.update()
+
+        def capture_open_menu(name, label, *, group=None, panel_only=False):
+            trigger = next(button for button in app.ui.drawer_buttons
+                           if button.cget('text') == label)
+            trigger.toggle()
+            if group:
+                trigger.show_group(group)
+            root.update_idletasks()
+            root.update()
+            assert trigger.opened and trigger.panel.winfo_ismapped()
+            target = trigger.panel if panel_only else root
+            x, y = target.winfo_rootx(), target.winfo_rooty()
+            ImageGrab.grab(bbox=(x, y, x+target.winfo_width(), y+target.winfo_height()),
+                xdisplay=os.environ.get('DISPLAY')).save(images / name)
+            print(name)
+            trigger.close()
+            root.update()
+
+        capture_open_menu('menu-light.png', '設定・診断', group='操作・設定')
+        capture_open_menu('menu-tools.png', 'ツール', panel_only=True)
+        app.ui.theme_var.set('dark')
+        app.ui._apply_appearance(True)
+        capture_open_menu('menu-dark.png', '設定・診断', group='操作・設定')
+        app.ui.theme_var.set('light')
+        app.ui._apply_appearance(False)
+        root.geometry('900x640+20+20')
+        root.update()
+        capture_open_menu('menu-compact.png', '設定・診断', group='操作・設定')
+        root.geometry('1180x900+20+20')
+        root.update()
+
         dialog = gui.SettingsDialog(app)
         dialog.output_tab.master.select(dialog.output_tab)
         dialog.win.geometry('850x780+20+20')
@@ -178,6 +197,9 @@ def main():
         # New setup/update windows use the same real controls. Only the installed
         # version lookup is synthetic; no install or update action is invoked.
         import installer_ui
+        # Keep screenshots independent of CI/Linux home directories.
+        stack.enter_context(patch.object(installer_ui, 'default_output_root',
+            return_value=Path('C:/Sample/Documents/UnifiedTranscriber')))
         from installation import InstallationInfo
         args = SimpleNamespace(target=Path('C:/Sample/UnifiedTranscriber'),
             uninstall=False, update=False, wait_pid=None)
@@ -185,6 +207,7 @@ def main():
         with patch('installer_ui.inspect_installation', return_value=fresh):
             window = tk.Toplevel(root)
             wizard = installer_ui.InstallerWindow(window, args)
+            wizard.output_location.set('C:/Sample/Documents/UnifiedTranscriber')
             wizard.minimal.set(True)
             window.geometry('880x810+20+20')
             capture('guide-install.png', window)
@@ -194,6 +217,7 @@ def main():
         with patch('installer_ui.inspect_installation', return_value=installed):
             window = tk.Toplevel(root)
             wizard = installer_ui.InstallerWindow(window, args)
+            wizard.output_location.set('C:/Sample/Documents/UnifiedTranscriber')
             window.geometry('880x810+20+20')
             capture('guide-maintenance.png', window)
             wizard.close()

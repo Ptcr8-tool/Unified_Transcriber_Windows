@@ -54,6 +54,21 @@ def main():
                 xdisplay=os.environ.get('DISPLAY')).save(images / name)
             print(name)
 
+        def capture_menu(name, label):
+            """Take a desktop capture of the real anchored overlay over the root."""
+            button = next(item for item in app.ui.drawer_buttons if item.cget('text') == label)
+            button.toggle()
+            root.update_idletasks()
+            root.update()
+            assert button.opened and button.panel is not None
+            button.panel.lift()
+            root.update_idletasks()
+            x, y = root.winfo_rootx(), root.winfo_rooty()
+            ImageGrab.grab(bbox=(x, y, x+root.winfo_width(), y+root.winfo_height()),
+                xdisplay=os.environ.get('DISPLAY')).save(images / name)
+            print(name)
+            button.close()
+            root.update()
         def finish(win):
             for job in root.tk.call('after', 'info'):
                 try:
@@ -86,13 +101,17 @@ def main():
             widget.insert('end', value)
             widget.configure(state='disabled')
         capture('main-light.png', root)
+        capture_menu('menu-light.png', '設定・診断')
+        capture_menu('menu-tools.png', 'ツール')
         app.ui.theme_var.set('dark')
         app.ui._apply_appearance(True)
         capture('main-dark.png', root)
+        capture_menu('menu-dark.png', '設定・診断')
         app.ui.theme_var.set('light')
         app.ui._apply_appearance(False)
         root.geometry('900x640+20+20')
         capture('main-compact.png', root)
+        capture_menu('menu-compact.png', '設定・診断')
         root.geometry('1180x900+20+20')
         root.update()
         dialog = gui.SettingsDialog(app)

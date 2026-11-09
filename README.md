@@ -26,7 +26,7 @@ CUDAの事前表示は、NVIDIA GPU・ドライバー情報から見た利用の
 <details>
 <summary>セットアップ画面を見る</summary>
 
-![インストール先と導入内容を選ぶセットアップの説明図。AIセットは任意です。](_internal/docs/images/guide-install.svg)
+![v1.0.3の実際のセットアップ画面。インストール先、共通保存先、録音環境、任意のAIセットを選択します。](_internal/docs/images/guide-install.png)
 
 </details>
 

@@ -1,7 +1,8 @@
 """Create documentation screenshots from real widgets and synthetic data.
 
-Run in a desktop or virtual display with Tk and Pillow installed. No recording,
-AI inference, downloads, registry writes or configuration saves are performed.
+Run in a desktop or virtual display with Tk and Pillow installed. It does not record,
+transcribe, write registry entries or save user settings. A pinned, SHA-256-verified
+TkDND wheel may be downloaded to capture the real drag-and-drop state.
 """
 from contextlib import ExitStack
 from pathlib import Path
@@ -16,6 +17,12 @@ from PIL import ImageGrab
 
 CODE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(CODE_DIR))
+from dnd_support import ensure_drag_drop
+
+# Refuse to publish a capture showing a broken drag-and-drop status.
+if not ensure_drag_drop():
+    raise RuntimeError('Pinned TkDND wheel is required for v1.0.3 screenshot capture')
+
 import unified_gui as gui
 from core import Config
 
@@ -25,7 +32,8 @@ def main():
     images.mkdir(parents=True, exist_ok=True)
     with ExitStack() as stack:
         folder = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix='sample-guide-')))
-        config = Config(profile='faster-res', output_dir='C:/Sample/Transcriptions', theme_mode='light',
+        config = Config(profile='faster-res', output_dir='C:/Sample/Transcriptions',
+            output_root='C:/Sample/Documents/UnifiedTranscriber', theme_mode='light',
             onboarding_seen=True, capture_setup_complete=True,
             live_recording_dir='C:/Sample/Recordings', gamebar_captures_dir='C:/Sample/Captures')
         stack.enter_context(patch.dict(os.environ, {'HF_TOKEN': ''}))
@@ -189,6 +197,9 @@ def main():
         # New setup/update windows use the same real controls. Only the installed
         # version lookup is synthetic; no install or update action is invoked.
         import installer_ui
+        # Avoid host-dependent home paths in installer screenshots.
+        stack.enter_context(patch.object(installer_ui, 'default_output_root',
+            return_value=Path('C:/Sample/Documents/UnifiedTranscriber')))
         from installation import InstallationInfo
         args = SimpleNamespace(target=Path('C:/Sample/UnifiedTranscriber'),
             uninstall=False, update=False, wait_pid=None)

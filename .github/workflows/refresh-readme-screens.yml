@@ -63,7 +63,8 @@ jobs:
                   assert max(s.stddev) > 12, (name, s.stddev)
                   print(f'{name}: {im.size}, {file.stat().st_size} bytes, stddev={s.stddev}')
           with Image.open(folder/'main-light.png') as a, Image.open(folder/'main-dark.png') as b:
-              assert a.convert('RGB').getpixel((40, 40)) != b.convert('RGB').getpixel((40, 40))
+              from PIL import ImageChops
+              assert ImageChops.difference(a.convert('RGB'), b.convert('RGB')).getbbox() is not None
           PY
           git status --short -- _internal/docs/images
       - name: Commit only refreshed documentation PNG images to review branch

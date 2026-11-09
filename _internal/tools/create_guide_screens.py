@@ -71,8 +71,11 @@ def main():
             sample.write_bytes(b'RIFF sample')
             samples.append(sample)
         app._add_paths(samples)
-        app.tree.set(str(samples[0]), 'state', '完了')
-        app.tree.selection_set(str(samples[0]))
+        rows = app.tree.get_children()
+        if len(rows) != len(samples):
+            raise RuntimeError('サンプルが想定どおり追加されていません。')
+        app.tree.set(rows[0], 'state', '完了')
+        app.tree.selection_set(rows[0])
         for key in app.tree.get_children():
             app.tree.set(key, 'destination', 'C:/Sample/Transcriptions')
         app.status.set('サンプル会議の文字起こしが完了しました。')

@@ -54,6 +54,20 @@ v1.0.3では、Hugging Faceのモデル取得、Windowsのキャッシュ動作�
 
 </details>
 
+
+<details>
+<summary>Game Bar連動・更新確認・保守画面を見る</summary>
+
+いずれもv1.0.3の画面です。説明用の設定値・フォルダーパスを使用し、録画や更新処理は実行していません。
+
+| Game Bar連動の録画設定 | アプリの更新確認 |
+| :---: | :---: |
+| ![v1.0.3のGame Bar録画設定。対象選択、音声入力、ライブ認識、録画後の文字起こしを指定できます。](_internal/docs/images/guide-gamebar.png) | ![v1.0.3の更新設定。GitHubの正式リリースを確認する間隔と手動確認を指定できます。](_internal/docs/images/guide-updates.png) |
+
+![v1.0.3の保守画面。同じバージョンがインストール済みの場合、修復とアンインストールを選べます。](_internal/docs/images/guide-maintenance.png)
+
+</details>
+
 各操作の手順は[画面付き操作ガイド](_internal/docs/USAGE.md)をご覧ください。
 
 ## はじめる — 最初のダウンロードはexeひとつ

@@ -1,7 +1,8 @@
 """Create documentation screenshots from real widgets and synthetic data.
 
-Run in a desktop or virtual display with Tk and Pillow installed. No recording, AI inference, registry writes or configuration saves are
-performed. The pinned, SHA-256-verified TkDND wheel may be downloaded for capture.
+Run in a desktop or virtual display with Tk and Pillow installed. It does not record,
+transcribe, write registry entries or save user settings. A pinned, SHA-256-verified
+TkDND wheel may be downloaded to capture the real drag-and-drop state.
 """
 from contextlib import ExitStack
 from pathlib import Path
@@ -18,10 +19,10 @@ CODE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(CODE_DIR))
 from dnd_support import ensure_drag_drop
 
-# Documentation captures run against the same SHA-256-verified TkDND wheel
-# as a normal installed application; never show a broken D&D status.
+# Refuse to publish a capture showing a broken drag-and-drop status.
 if not ensure_drag_drop():
-    raise RuntimeError('Pinned TkDND wheel must be available to capture screenshots')
+    raise RuntimeError('Pinned TkDND wheel is required for v1.0.3 screenshot capture')
+
 import unified_gui as gui
 from core import Config
 
@@ -52,8 +53,9 @@ def main():
         root.geometry('1180x900+20+20')
         root.update()
 
-        def capture(name, win):
-            win.lift()
+        def capture(name, win, *, lift=True):
+            if lift:
+                win.lift()
             root.update_idletasks()
             root.update()
             x, y = win.winfo_rootx(), win.winfo_rooty()
@@ -77,14 +79,17 @@ def main():
             sample.write_bytes(b'RIFF sample')
             samples.append(sample)
         app._add_paths(samples)
-        app.tree.set(str(samples[0]), 'state', '完了')
-        app.tree.selection_set(str(samples[0]))
+        rows = app.tree.get_children()
+        if len(rows) != len(samples):
+            raise RuntimeError('サンプルが想定どおり追加されていません。')
+        app.tree.set(rows[0], 'state', '完了')
+        app.tree.selection_set(rows[0])
         for key in app.tree.get_children():
             app.tree.set(key, 'destination', 'C:/Sample/Transcriptions')
         app.status.set('サンプル会議の文字起こしが完了しました。')
         for widget, value in ((app.recognized_box,
-            '[00:00:01] SPEAKER_00: サンプル会議を開始します。\n'
-            '[00:00:05] SPEAKER_01: 本日の確認事項を共有します。\n'
+            '[00:00:01] SPEAKER_00: サンプル会議を開始します。\n\n'
+            '[00:00:05] SPEAKER_01: 本日の確認事項を共有します。\n\n'
             '[00:00:10] SPEAKER_00: 次の項目に進みます。\n'),
             (app.logbox, 'sample_meeting_01.wav\n文字起こしが完了しました。\n'
              '保存先: C:/Sample/Transcriptions\n')):
@@ -93,46 +98,40 @@ def main():
             widget.insert('end', value)
             widget.configure(state='disabled')
         capture('main-light.png', root)
+
+        # Capture the current top menus from real widgets, not from a drawing
+        # or from the legacy nested navigation screenshot.  The floating
+        # Toplevel must remain above the root for full-window captures.
+        def capture_menu(label, filename, *, category=None, panel_only=False):
+            button = next(item for item in app.ui.drawer_buttons
+                          if item.cget('text') == label)
+            button.toggle()
+            root.update_idletasks()
+            root.update()
+            if category is not None:
+                button.show_group(category)
+                root.update()
+            if panel_only:
+                capture(filename, button.panel)
+            else:
+                button.panel.lift()
+                capture(filename, root, lift=False)
+            button.close()
+            root.update()
+
+        capture_menu('設定・診断', 'menu-light.png', category='操作・設定')
+        capture_menu('ツール', 'menu-tools.png', panel_only=True)
         app.ui.theme_var.set('dark')
         app.ui._apply_appearance(True)
         capture('main-dark.png', root)
+        capture_menu('設定・診断', 'menu-dark.png', category='操作・設定')
         app.ui.theme_var.set('light')
         app.ui._apply_appearance(False)
         root.geometry('900x640+20+20')
         capture('main-compact.png', root)
+        capture_menu('設定・診断', 'menu-compact.png', category='操作・設定')
         root.geometry('1180x900+20+20')
         root.update()
-
-        def capture_open_menu(name, label, *, group=None, panel_only=False):
-            trigger = next(button for button in app.ui.drawer_buttons
-                           if button.cget('text') == label)
-            trigger.toggle()
-            if group:
-                trigger.show_group(group)
-            root.update_idletasks()
-            root.update()
-            assert trigger.opened and trigger.panel.winfo_ismapped()
-            target = trigger.panel if panel_only else root
-            x, y = target.winfo_rootx(), target.winfo_rooty()
-            ImageGrab.grab(bbox=(x, y, x+target.winfo_width(), y+target.winfo_height()),
-                xdisplay=os.environ.get('DISPLAY')).save(images / name)
-            print(name)
-            trigger.close()
-            root.update()
-
-        capture_open_menu('menu-light.png', '設定・診断', group='操作・設定')
-        capture_open_menu('menu-tools.png', 'ツール', panel_only=True)
-        app.ui.theme_var.set('dark')
-        app.ui._apply_appearance(True)
-        capture_open_menu('menu-dark.png', '設定・診断', group='操作・設定')
-        app.ui.theme_var.set('light')
-        app.ui._apply_appearance(False)
-        root.geometry('900x640+20+20')
-        root.update()
-        capture_open_menu('menu-compact.png', '設定・診断', group='操作・設定')
-        root.geometry('1180x900+20+20')
-        root.update()
-
         dialog = gui.SettingsDialog(app)
         dialog.output_tab.master.select(dialog.output_tab)
         dialog.win.geometry('850x780+20+20')
@@ -164,6 +163,7 @@ def main():
             '[00:00:10] SPEAKER_00: 次の項目に進みます。\n', encoding='utf-8')
         dialog = gui.SpeakerEditDialog(app, sample)
         dialog.input.set('C:/Sample/Transcriptions/sample_meeting.txt')
+        root.update_idletasks()
         dialog.output.set('C:/Sample/Transcriptions/sample_meeting_names.txt')
         for speaker, variable in dialog.rename_vars.items():
             variable.set('話者A' if speaker == 'SPEAKER_00' else '話者B')
@@ -197,7 +197,7 @@ def main():
         # New setup/update windows use the same real controls. Only the installed
         # version lookup is synthetic; no install or update action is invoked.
         import installer_ui
-        # Keep screenshots independent of CI/Linux home directories.
+        # Avoid host-dependent home paths in installer screenshots.
         stack.enter_context(patch.object(installer_ui, 'default_output_root',
             return_value=Path('C:/Sample/Documents/UnifiedTranscriber')))
         from installation import InstallationInfo

@@ -1,7 +1,7 @@
 """Create documentation screenshots from real widgets and synthetic data.
 
-Run in a desktop or virtual display with Tk and Pillow installed. No recording,
-AI inference, downloads, registry writes or configuration saves are performed.
+Run in a desktop or virtual display with Tk and Pillow installed. No recording, AI inference, registry writes or configuration saves are
+performed. The pinned, SHA-256-verified TkDND wheel may be downloaded for capture.
 """
 from contextlib import ExitStack
 from pathlib import Path
@@ -207,6 +207,7 @@ def main():
         with patch('installer_ui.inspect_installation', return_value=fresh):
             window = tk.Toplevel(root)
             wizard = installer_ui.InstallerWindow(window, args)
+            wizard.output_location.set('C:/Sample/Documents/UnifiedTranscriber')
             wizard.minimal.set(True)
             window.geometry('880x810+20+20')
             capture('guide-install.png', window)
@@ -216,6 +217,7 @@ def main():
         with patch('installer_ui.inspect_installation', return_value=installed):
             window = tk.Toplevel(root)
             wizard = installer_ui.InstallerWindow(window, args)
+            wizard.output_location.set('C:/Sample/Documents/UnifiedTranscriber')
             window.geometry('880x810+20+20')
             capture('guide-maintenance.png', window)
             wizard.close()

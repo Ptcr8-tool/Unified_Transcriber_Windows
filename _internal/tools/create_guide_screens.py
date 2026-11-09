@@ -197,6 +197,9 @@ def main():
         # New setup/update windows use the same real controls. Only the installed
         # version lookup is synthetic; no install or update action is invoked.
         import installer_ui
+        # Keep screenshots independent of CI/Linux home directories.
+        stack.enter_context(patch.object(installer_ui, 'default_output_root',
+            return_value=Path('C:/Sample/Documents/UnifiedTranscriber')))
         from installation import InstallationInfo
         args = SimpleNamespace(target=Path('C:/Sample/UnifiedTranscriber'),
             uninstall=False, update=False, wait_pid=None)

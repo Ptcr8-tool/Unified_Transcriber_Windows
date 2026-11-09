@@ -6,6 +6,7 @@ on:
       - docs/refresh-readme-screens-20261109
     paths:
       - .github/workflows/refresh-readme-screens.yml
+      - _internal/tools/create_guide_screens.py
 
 permissions:
   contents: write

@@ -16,6 +16,12 @@ from PIL import ImageGrab
 
 CODE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(CODE_DIR))
+from dnd_support import ensure_drag_drop
+
+# Documentation captures run against the same SHA-256-verified TkDND wheel
+# as a normal installed application; never show a broken D&D status.
+if not ensure_drag_drop():
+    raise RuntimeError('Pinned TkDND wheel must be available to capture screenshots')
 import unified_gui as gui
 from core import Config
 
@@ -25,7 +31,8 @@ def main():
     images.mkdir(parents=True, exist_ok=True)
     with ExitStack() as stack:
         folder = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix='sample-guide-')))
-        config = Config(profile='faster-res', output_dir='C:/Sample/Transcriptions', theme_mode='light',
+        config = Config(profile='faster-res', output_dir='C:/Sample/Transcriptions',
+            output_root='C:/Sample/Documents/UnifiedTranscriber', theme_mode='light',
             onboarding_seen=True, capture_setup_complete=True,
             live_recording_dir='C:/Sample/Recordings', gamebar_captures_dir='C:/Sample/Captures')
         stack.enter_context(patch.dict(os.environ, {'HF_TOKEN': ''}))

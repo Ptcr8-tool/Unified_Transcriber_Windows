@@ -5,7 +5,6 @@
 v1.0.3では、Hugging Faceのモデル取得、Windowsのキャッシュ動作、pyannote環境構築を修正し、文字起こし中の異常終了から復旧できる途中結果保存を追加しました。v1.0.2までのメニュー・出力設定の改善も含みます。
 
 > **未署名のWindows版 v1.0.3** — 配布するexeにはAuthenticodeの発行元署名がありません。ブラウザー・SmartScreenで警告が出たり、Smart App Controlで実行を拒否されたりする場合があります。Windowsのセキュリティ機能を無効にすることは推奨しません。
->
 
 **[セットアップexeをダウンロード](https://github.com/Ptcr8-tool/Unified_Transcriber_Windows/releases/latest)** · [画面付きの操作ガイド](_internal/docs/USAGE.md) · [リリース情報](_internal/docs/CHANGELOG.md)
 
@@ -33,7 +32,12 @@ CUDAの事前表示は、NVIDIA GPU・ドライバー情報から見た利用の
 
 ## メイン画面の見方
 
-![メイン画面。上部で録音や認識方式を選び、中央にファイルを追加。左下が認識文、右下が詳細ログ、最下部が開始・停止です。](_internal/docs/images/main-light.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="_internal/docs/images/main-dark.png">
+  <img src="_internal/docs/images/main-light.png" alt="v1.0.3のメイン画面。上部に録音とメニュー、中央に文字起こしキュー、左下に認識文、右下に詳細ログ、下部に開始・停止を表示" width="1180">
+</picture>
+
+<sub>v1.0.3の画面を実際のTkウィジェットから撮影。掲載データ・発言・パスは架空のサンプルです。GitHubのライト／ダーク表示に合わせて画像が切り替わります。[小さいウィンドウでの表示](_internal/docs/images/main-compact.png)</sub>
 
 | 場所 | 主な操作 |
 | --- | --- |
@@ -44,6 +48,30 @@ CUDAの事前表示は、NVIDIA GPU・ドライバー情報から見た利用の
 | 左の認識プレビュー | 認識文を表示。「コピー」で表示中の全文をコピーできます。 |
 | 右の詳細ログ | 進捗やエラーの理由を確認。別ウィンドウでも表示できます。 |
 | 下部の開始・停止 | ファイルの文字起こしを開始。TOPの「すべて停止」で全処理を中断できます。 |
+
+### 上部メニュー — 分類と操作を明確に分離
+
+「録音・録画」と「ツール」は分類見出しの下から操作を直接選べます。「設定・診断」は左のカテゴリを選ぶと、右に操作名とその説明が表示されます。メニューは画面に重ねて開くため、ファイル一覧やプレビューの位置が動きません。
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="_internal/docs/images/menu-dark.png">
+  <img src="_internal/docs/images/menu-light.png" alt="v1.0.3の設定・診断メニュー。左にカテゴリ一覧、右に説明付き操作の一覧を表示" width="1180">
+</picture>
+
+<sub>[ツールメニューの操作一覧](_internal/docs/images/menu-tools.png) · [900×640のメニュー表示](_internal/docs/images/menu-compact.png)</sub>
+
+<details>
+<summary>その他の画面を見る（録音・モデルセットアップ・詳細設定）</summary>
+
+| 録音・ライブ文字起こし | 認識方式の一括セットアップ |
+| --- | --- |
+| <img src="_internal/docs/images/guide-recording.png" alt="マイクとPC音の録音、ライブ認識、保存形式などを設定する画面" width="360"> | <img src="_internal/docs/images/guide-setup.png" alt="音声認識の方式とCPU/GPUを選択する一括セットアップ画面" width="360"> |
+
+**保存先・出力形式の詳細設定**
+
+<img src="_internal/docs/images/settings.png" alt="文字起こしの出力先、保存形式とファイル名を設定する画面" width="580">
+
+</details>
 
 アプリ内の使い方から、番号付きの画面解説を含む**オフラインの図解ガイド**も開けます。ダイアログが画面に収まらない場合は、縦にスクロールして下の項目を確認してください。
 
@@ -63,8 +91,6 @@ CUDAの事前表示は、NVIDIA GPU・ドライバー情報から見た利用の
 - メニューはボタンの近くに重ねて開きます。キーボード移動、Home／End、Escとフォーカス復帰に対応します。
 - 文字起こしの発話間の空行は既定0行になり、設定で0〜10行に変更できます。
 - 話者名編集後のTXT／CSVは、元のファイルと同じフォルダーに別名保存します。
-
-![ツールメニュー。太字の分類見出しの下に、説明付きの操作が並びます。](_internal/docs/images/menu-tools.png)
 
 詳細は[リリース情報](_internal/docs/CHANGELOG.md)を参照してください。
 
@@ -142,7 +168,7 @@ Game Bar自身が作成する元MP4の保存先はWindows側の設定です。�
 - [第三者ソフトウェアとライセンス情報](THIRD_PARTY_NOTICES.md)
 - [リリース情報](_internal/docs/CHANGELOG.md)
 
-画面例は一部が開発中の表示で、最新の画面と異なる場合があります。ファイル名・本文・日時・名前は架空のサンプルです。Windowsの録音デバイス・Game Bar・GPUでの動作確認範囲は検証資料を参照してください。
+掲載したメイン画面・設定画面の画像は、v1.0.3のTkウィジェットを使って更新したものです。ファイル名・本文・日時・名前は架空のサンプルです。Windowsの録音デバイス・Game Bar・GPUでの動作確認範囲は検証資料を参照してください。
 
 <details>
 <summary>同梱Python・依存ライブラリの対応範囲</summary>

@@ -1,0 +1,55 @@
+name: Capture corrected documentation screens
+on:
+  push:
+    branches:
+      - docs/final-v103-ui-captures
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+      - name: Install virtual display
+        run: sudo apt-get update -qq && sudo apt-get install -y xvfb xauth python3-tk fonts-noto-cjk
+      - name: Install screenshot toolkit
+        run: python -m pip install pillow==11.3.0 tkinterdnd2==0.6.4
+      - name: Verify pinned DnD and render real Tk widgets
+        run: |
+          xvfb-run -a -s '-screen 0 1600x2160x24' python _internal/dnd_support.py --install-and-check
+          xvfb-run -a -s '-screen 0 1600x2160x24' python _internal/tools/create_guide_screens.py
+      - name: Validate real screenshots and commit
+        shell: bash
+        run: |
+          python - <<'PY'
+          from PIL import Image, ImageStat
+          from pathlib import Path
+          names = ('main-light','main-dark','main-compact','menu-light','menu-dark','menu-compact','menu-tools','settings','settings-export','guide-speakers','guide-install','guide-maintenance','guide-recording','guide-gamebar','guide-setup','guide-merge','guide-updates')
+          for name in names:
+              path = Path('_internal/docs/images')/(name+'.png')
+              assert path.is_file() and path.stat().st_size > 15000, name
+              with Image.open(path) as im:
+                  assert im.width >= 500 and im.height >= 300, (name, im.size)
+                  assert max(ImageStat.Stat(im.convert('RGB')).stddev) > 12, name
+              print(name, path.stat().st_size)
+          PY
+          git config user.name Ptcr8
+          git config user.email 182083273+Ptcr8@users.noreply.github.com
+          git add _internal/docs/images/*.png
+          git diff --cached --stat
+          if ! git diff --cached --quiet; then
+            git commit -m 'Refresh v1.0.3 README screenshots with verified TkDND'
+            git push origin HEAD:docs/final-v103-ui-captures
+          fi

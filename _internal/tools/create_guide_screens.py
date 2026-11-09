@@ -45,8 +45,9 @@ def main():
         root.geometry('1180x900+20+20')
         root.update()
 
-        def capture(name, win):
-            win.lift()
+        def capture(name, win, *, lift=True):
+            if lift:
+                win.lift()
             root.update_idletasks()
             root.update()
             x, y = win.winfo_rootx(), win.winfo_rooty()
@@ -54,21 +55,6 @@ def main():
                 xdisplay=os.environ.get('DISPLAY')).save(images / name)
             print(name)
 
-        def capture_menu(name, label):
-            """Take a desktop capture of the real anchored overlay over the root."""
-            button = next(item for item in app.ui.drawer_buttons if item.cget('text') == label)
-            button.toggle()
-            root.update_idletasks()
-            root.update()
-            assert button.opened and button.panel is not None
-            button.panel.lift()
-            root.update_idletasks()
-            x, y = root.winfo_rootx(), root.winfo_rooty()
-            ImageGrab.grab(bbox=(x, y, x+root.winfo_width(), y+root.winfo_height()),
-                xdisplay=os.environ.get('DISPLAY')).save(images / name)
-            print(name)
-            button.close()
-            root.update()
         def finish(win):
             for job in root.tk.call('after', 'info'):
                 try:
@@ -85,14 +71,17 @@ def main():
             sample.write_bytes(b'RIFF sample')
             samples.append(sample)
         app._add_paths(samples)
-        app.tree.set(str(samples[0]), 'state', '完了')
-        app.tree.selection_set(str(samples[0]))
+        rows = app.tree.get_children()
+        if len(rows) != len(samples):
+            raise RuntimeError('サンプルが想定どおり追加されていません。')
+        app.tree.set(rows[0], 'state', '完了')
+        app.tree.selection_set(rows[0])
         for key in app.tree.get_children():
             app.tree.set(key, 'destination', 'C:/Sample/Transcriptions')
         app.status.set('サンプル会議の文字起こしが完了しました。')
         for widget, value in ((app.recognized_box,
-            '[00:00:01] SPEAKER_00: サンプル会議を開始します。\n'
-            '[00:00:05] SPEAKER_01: 本日の確認事項を共有します。\n'
+            '[00:00:01] SPEAKER_00: サンプル会議を開始します。\n\n'
+            '[00:00:05] SPEAKER_01: 本日の確認事項を共有します。\n\n'
             '[00:00:10] SPEAKER_00: 次の項目に進みます。\n'),
             (app.logbox, 'sample_meeting_01.wav\n文字起こしが完了しました。\n'
              '保存先: C:/Sample/Transcriptions\n')):
@@ -101,17 +90,38 @@ def main():
             widget.insert('end', value)
             widget.configure(state='disabled')
         capture('main-light.png', root)
-        capture_menu('menu-light.png', '設定・診断')
-        capture_menu('menu-tools.png', 'ツール')
+
+        # Capture the current top menus from real widgets, not from a drawing
+        # or from the legacy nested navigation screenshot.  The floating
+        # Toplevel must remain above the root for full-window captures.
+        def capture_menu(label, filename, *, category=None, panel_only=False):
+            button = next(item for item in app.ui.drawer_buttons
+                          if item.cget('text') == label)
+            button.toggle()
+            root.update_idletasks()
+            root.update()
+            if category is not None:
+                button.show_group(category)
+                root.update()
+            if panel_only:
+                capture(filename, button.panel)
+            else:
+                button.panel.lift()
+                capture(filename, root, lift=False)
+            button.close()
+            root.update()
+
+        capture_menu('設定・診断', 'menu-light.png', category='操作・設定')
+        capture_menu('ツール', 'menu-tools.png', panel_only=True)
         app.ui.theme_var.set('dark')
         app.ui._apply_appearance(True)
         capture('main-dark.png', root)
-        capture_menu('menu-dark.png', '設定・診断')
+        capture_menu('設定・診断', 'menu-dark.png', category='操作・設定')
         app.ui.theme_var.set('light')
         app.ui._apply_appearance(False)
         root.geometry('900x640+20+20')
         capture('main-compact.png', root)
-        capture_menu('menu-compact.png', '設定・診断')
+        capture_menu('設定・診断', 'menu-compact.png', category='操作・設定')
         root.geometry('1180x900+20+20')
         root.update()
         dialog = gui.SettingsDialog(app)
@@ -145,6 +155,7 @@ def main():
             '[00:00:10] SPEAKER_00: 次の項目に進みます。\n', encoding='utf-8')
         dialog = gui.SpeakerEditDialog(app, sample)
         dialog.input.set('C:/Sample/Transcriptions/sample_meeting.txt')
+        root.update_idletasks()
         dialog.output.set('C:/Sample/Transcriptions/sample_meeting_names.txt')
         for speaker, variable in dialog.rename_vars.items():
             variable.set('話者A' if speaker == 'SPEAKER_00' else '話者B')
@@ -185,6 +196,7 @@ def main():
         with patch('installer_ui.inspect_installation', return_value=fresh):
             window = tk.Toplevel(root)
             wizard = installer_ui.InstallerWindow(window, args)
+            wizard.output_location.set('C:/Sample/Documents/UnifiedTranscriber')
             wizard.minimal.set(True)
             window.geometry('880x810+20+20')
             capture('guide-install.png', window)
@@ -194,6 +206,7 @@ def main():
         with patch('installer_ui.inspect_installation', return_value=installed):
             window = tk.Toplevel(root)
             wizard = installer_ui.InstallerWindow(window, args)
+            wizard.output_location.set('C:/Sample/Documents/UnifiedTranscriber')
             window.geometry('880x810+20+20')
             capture('guide-maintenance.png', window)
             wizard.close()

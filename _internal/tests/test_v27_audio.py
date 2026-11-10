@@ -46,7 +46,11 @@ class AudioChannelsTests(unittest.TestCase):
         audio,_=mixer.pull(20)
         np.testing.assert_allclose(audio[:,0],.15)
         np.testing.assert_allclose(audio[:,1],.98)
-        with self.assertRaises(ValueError):LiveOptions(channel_mode='split_lr').validate()
+        for source in ('mic', 'loopback'):
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                LiveOptions(source=source,channel_mode='split_lr').validate()
+        # The default is now mixed microphone + PC playback, so L/R is valid.
+        LiveOptions(channel_mode='split_lr').validate()
         LiveOptions(source='mix',channel_mode='split_lr').validate()
 
     def test_lossless_encoding_keeps_lr_order_and_isolation(self):

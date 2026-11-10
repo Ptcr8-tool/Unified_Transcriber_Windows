@@ -155,6 +155,47 @@ class ControllerTests(unittest.TestCase):
             self.app.close.assert_not_called()
             self.assertTrue(self.controller.closed.is_set())
 
+    def test_download_progress_is_dispatched_on_ui_thread(self):
+        info = SimpleNamespace(has_provenance=True)
+        result = SimpleNamespace(info=SimpleNamespace(version='2.2.0'), path=Path('/dummy/test.exe'))
+        progress = SimpleNamespace(win=SimpleNamespace(destroy=Mock()),
+                                   status=SimpleNamespace(set=Mock()),
+                                   update_transfer=Mock())
+
+        def completed(_info, _folder, **kwargs):
+            kwargs['on_progress']('installer', 512, 1024)
+            kwargs['on_progress']('verification', 0, None)
+            self.assertFalse(kwargs['cancelled']())
+            return result
+
+        with patch.object(update_ui, 'UpdateProgressDialog', return_value=progress), \
+             patch.object(app_updates, 'download_verified', side_effect=completed), \
+             patch.object(self.controller, '_ready') as ready:
+            self.assertTrue(self.controller.download(info))
+            self.controller._poll()
+            self.assertEqual(progress.update_transfer.call_count, 2)
+            ready.assert_called_once_with(result)
+
+    def test_cancel_reaches_worker_without_error_modal(self):
+        info = SimpleNamespace(has_provenance=True)
+        progress = SimpleNamespace(win=SimpleNamespace(destroy=Mock()),
+                                   status=SimpleNamespace(set=Mock()),
+                                   update_transfer=Mock())
+
+        def cancelled(_info, _folder, **kwargs):
+            self.controller.cancel_download()
+            self.assertTrue(kwargs['cancelled']())
+            raise app_updates.UpdateCancelled('cancelled')
+
+        with patch.object(update_ui, 'UpdateProgressDialog', return_value=progress), \
+             patch.object(app_updates, 'download_verified', side_effect=cancelled), \
+             patch.object(update_ui.messagebox, 'showerror') as error:
+            self.assertTrue(self.controller.download(info))
+            self.controller._poll()
+            error.assert_not_called()
+            self.assertFalse(self.controller.downloading)
+            self.app.status.set.assert_called_with('更新の準備をキャンセルしました。')
+
     def test_unverified_release_has_no_download_or_browser_side_effect(self):
         with patch.object(update_ui.messagebox, 'showerror'), \
              patch.object(app_updates, 'download_verified') as download, \

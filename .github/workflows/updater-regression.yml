@@ -1,0 +1,33 @@
+name: Test updater timeouts and cancellation
+
+on:
+  pull_request:
+    paths:
+      - _internal/app_updates.py
+      - _internal/update_ui.py
+      - _internal/tests/test_app_updates.py
+      - _internal/tests/test_update_ui.py
+      - .github/workflows/updater-regression.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  updater-tests:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: _internal
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v6
+        with:
+          python-version: '3.11'
+      - name: Compile modules
+        run: python -m compileall -q _internal/app_updates.py _internal/update_ui.py _internal/tests/test_app_updates.py _internal/tests/test_update_ui.py
+      - name: Test updater and UI controller
+        run: python -m unittest -v tests.test_app_updates tests.test_update_ui

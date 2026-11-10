@@ -148,6 +148,9 @@ class UpdateController:
                     if manual:
                         self._status('更新情報を取得できませんでした。')
                         messagebox.showinfo('更新の確認', value, parent=self.root)
+                elif kind == 'download-progress':
+                    if self.progress is not None and not self.download_cancelled.is_set():
+                        self.progress.update_transfer(*value)
                 elif kind == 'downloaded':
                     self.downloading = False
                     self._close_progress()
@@ -160,9 +163,11 @@ class UpdateController:
                     self.downloading = False
                     self._close_progress()
                     self._log(value)
-                    if not self.download_cancelled.is_set():
+                    if self.download_cancelled.is_set():
+                        self._status('更新の準備をキャンセルしました。')
+                    else:
                         messagebox.showerror('更新を中止しました', value, parent=self.root)
-                    self._status('更新は実行していません。')
+                        self._status('更新は実行していません。')
         except queue.Empty:
             pass
         if self.pending and self._can_prompt():
@@ -190,8 +195,19 @@ class UpdateController:
         self._status('更新をダウンロードして署名を確認しています…')
         directory = core.app_config_path().parent / 'Updates'
         def worker():
+            last_reported = [-1]
+            def progress(stage, done, total):
+                if self.closed.is_set() or self.download_cancelled.is_set():
+                    return
+                if stage == 'installer':
+                    if (done not in (0, total) and last_reported[0] >= 0
+                            and done - last_reported[0] < 1024 * 1024):
+                        return
+                    last_reported[0] = done
+                self.events.put(('download-progress', (stage, done, total), True))
             try:
-                result = app_updates.download_verified(info, directory)
+                result = app_updates.download_verified(info, directory,
+                    cancelled=self.download_cancelled.is_set, on_progress=progress)
                 if self.closed.is_set() or self.download_cancelled.is_set():
                     self._discard(result)
                     if not self.closed.is_set():
@@ -389,11 +405,24 @@ class UpdateProgressDialog:
         frame.pack(fill='both', expand=True)
         self.status = tk.StringVar(self.win, 'ダウンロードと署名の検証を行っています…')
         ttk.Label(frame, textvariable=self.status, wraplength=595, style='Section.TLabel').pack(anchor='w', pady=(0, 18))
-        bar = ttk.Progressbar(frame, mode='indeterminate')
-        bar.pack(fill='x', pady=(0, 14))
-        bar.start(15)
+        self.bar = ttk.Progressbar(frame, mode='indeterminate')
+        self.bar.pack(fill='x', pady=(0, 14))
+        self.bar.start(15)
         ttk.Label(frame, text='完了するまで、アプリの更新は実行されません。', style='Muted.TLabel').pack(anchor='w')
         IconButton(frame, text='キャンセル', command=controller.cancel_download).pack(side='right', anchor='s', pady=(20, 0))
         self.win.protocol('WM_DELETE_WINDOW', controller.cancel_download)
         self.win.bind('<Escape>', lambda _event: controller.cancel_download())
         theme_widgets(self.win)
+
+    def update_transfer(self, stage, done, total):
+        if stage == 'installer' and total:
+            if self.bar.cget('mode') != 'determinate':
+                self.bar.stop()
+                self.bar.configure(mode='determinate', maximum=100)
+            self.bar.configure(value=100 * done / total)
+            self.status.set(f'セットアップをダウンロード中… {done / 1048576:.1f} / {total / 1048576:.1f} MB')
+        elif stage == 'verification':
+            if self.bar.cget('mode') != 'indeterminate':
+                self.bar.configure(mode='indeterminate')
+                self.bar.start(15)
+            self.status.set('ダウンロード完了。チェックサム・署名・配布元を検証しています…')

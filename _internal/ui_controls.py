@@ -235,6 +235,8 @@ class NavigationMenuButton(IconMenubutton):
             self.group_title.configure(text='ファイルの追加方法')
             self.group_description.configure(text='追加する範囲や、自動で取り込む方法を選びます')
             self._populate_actions(menu)
+        from ui_locale import translate_widgets
+        translate_widgets(panel)
         panel.update_idletasks()
         self._position_panel()
         panel.deiconify()
@@ -338,6 +340,8 @@ class NavigationMenuButton(IconMenubutton):
         for child in self._action_area.winfo_children():
             child.destroy()
         self._populate_actions(menu)
+        from ui_locale import translate_widgets
+        translate_widgets(self.panel)
         self._clip.yview_moveto(0)
 
     def _bind_category_keys(self, button, label):

@@ -53,6 +53,7 @@ from live_config import (LiveOptions, collision_safe_path, unique_media_path,
                          RECORDING_CHANNELS, recording_channel_label, is_silent_pcm)
 from capture_preferences import saved_options, serialize_options, match_window, recording_folder_preference
 from app_hotkeys import WindowsHotkeys
+from ui_locale import get_language, set_language, translate_widgets
 from live_transcript import append_provisional, shifted_lines
 from transcript_tools import (convert_transcript, export_transcript_csv, merge_transcript_csv,
                               speakers_in_transcript, replace_speaker_labels, speaker_utterances)
@@ -186,6 +187,7 @@ def modal(parent: tk.Misc, title: str, width: int = 760) -> tk.Toplevel:
     win.bind('<Escape>', lambda _event: win.destroy())
     center(win, parent)
     win.after_idle(lambda: fit_dialog(win, parent))
+    win.after_idle(lambda: translate_widgets(win))
     return win
 
 
@@ -1158,9 +1160,16 @@ class LiveCaptureDialog:
     MODES = {'録音＋文字起こし': 'both', '録音のみ': 'record', '文字起こしのみ': 'transcribe'}
     SOURCES = {'マイク入力': 'mic', 'PC再生音（WASAPIループバック）': 'loopback',
                'マイク＋PC再生音（同時録音）': 'mix'}
+    MODES_EN = {'Record & transcribe': 'both', 'Record only': 'record',
+                'Transcribe only': 'transcribe'}
+    SOURCES_EN = {'Microphone': 'mic', 'PC playback (WASAPI loopback)': 'loopback',
+                  'Microphone + PC playback (simultaneously)': 'mix'}
 
     def __init__(self, app: 'UnifiedApp'):
         self.app = app
+        if get_language() == 'en':
+            self.MODES = self.MODES_EN
+            self.SOURCES = self.SOURCES_EN
         self.win = modal(app.root, 'リアルタイム録音・文字起こし', 800)
         self.ui_cancel=ui_window_cancel(self.win)
         self.win.geometry('800x750')
@@ -1179,8 +1188,8 @@ class LiveCaptureDialog:
         canvas.bind('<Configure>',lambda event:canvas.itemconfigure(window_id,width=event.width))
         ttk.Label(frame, text='音声を連続録音しながら、別処理で区間ごとに文字起こし',
                   font=(UI_FONT, 12, 'bold')).pack(anchor='w', pady=(0,12))
-        self.mode = tk.StringVar(value='録音＋文字起こし')
-        self.source = tk.StringVar(value='マイク＋PC再生音（同時録音）')
+        self.mode = tk.StringVar(value=next(label for label,value in self.MODES.items() if value == 'both'))
+        self.source = tk.StringVar(value=next(label for label,value in self.SOURCES.items() if value == 'mix'))
         self.interval = tk.StringVar(value='20')
         self.folder = tk.StringVar(value=str(app.config.live_recording_dir or default_directory('recordings')))
         self.final_pass = tk.BooleanVar(value=True)
@@ -1335,7 +1344,7 @@ class LiveCaptureDialog:
 
     def _channel_changed(self):
         if RECORDING_CHANNELS[self.recording_channels.get()][1] == 'split_lr':
-            self.source.set('マイク＋PC再生音（同時録音）')
+            self.source.set(next(label for label,value in self.SOURCES.items() if value == 'mix'))
 
     def _browse(self):
         result=filedialog.askdirectory(parent=self.win,initialdir=self.folder.get())
@@ -2213,6 +2222,7 @@ class UnifiedApp:
     def __init__(self,root:tk.Tk):
         self.root=root
         self.config=load_config()
+        set_language(self.config.ui_language)
         ensure_output_directories()
         self.hf_token,self.config,credential_warning=resolve_hf_token(self.config,save_config)
         self.diagnostics = SessionLogs(self.hf_token)
@@ -2269,6 +2279,7 @@ class UnifiedApp:
         self.root.bind('<Unmap>',self._on_minimize,add='+')
         install_wheel_routing(self.root)
         self._make_ui()
+        translate_widgets(self.root)
         self.log(f'[診断ログ] {self.diagnostics.session_path}\n'
                  f'[エラーログ] {self.diagnostics.error_path}\n')
         if credential_warning:
@@ -2392,6 +2403,10 @@ class UnifiedApp:
             self.status.set('別の処理を実行中です。終了後に録音を開始してください。')
         elif self.root.grab_current() is None:self.open_capture(action)
         return 'break'
+
+    def edit_ui_language(self):
+        from ui_locale import language_settings
+        return language_settings(self)
 
     def edit_shortcuts(self):
         from hotkey_ui import ShortcutSettingsDialog

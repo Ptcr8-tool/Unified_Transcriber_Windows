@@ -16,7 +16,7 @@ class GroupedNavigation(fixtures.StudioGUIFixture):
         expected={'live','gamebar','capture_setup','cancel_live_asr','import','text_merge','audio_merge',
             'csv_merge','convert','speaker','bulk','setup','cuda','limits','shortcuts','hints','dnd','logs',
             'detached_log','export_logs','help','background','add_folder','watch','file_output','file_policy',
-            'remove','select_all','clear','result','open_source','open_result','result_speaker','settings_export','settings_import','app_updates'}
+            'remove','select_all','clear','result','open_source','open_result','result_speaker','settings_export','settings_import','app_updates','ui_language'}
         self.assertEqual(set(view.actions),expected)
         labels=[]
         for button in view.drawer_buttons:

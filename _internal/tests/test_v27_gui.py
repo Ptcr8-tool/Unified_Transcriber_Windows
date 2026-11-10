@@ -68,6 +68,27 @@ class RecordingGUI(fixtures.StudioGUIFixture):
             a.config.skip_live_settings=False;dialog.reset_mock()
             a.open_capture('live');dialog.assert_called_once_with('live')
 
+    def test_english_recording_modes_use_stable_internal_ids(self):
+        from ui_locale import set_language
+        set_language('en')
+        try:
+            a = self.app
+            dialog = gui.LiveCaptureDialog(a)
+            self.root.update()
+            self.assertEqual(dialog.SOURCES[dialog.source.get()], 'mix')
+            self.assertEqual(dialog.MODES[dialog.mode.get()], 'both')
+            record_label = next(label for label, identity in dialog.MODES.items() if identity == 'record')
+            dialog.mode.set(record_label)
+            self.root.update()
+            self.assertEqual(str(dialog.interval_combo.cget('state')), 'disabled')
+            self.assertTrue(dialog.post_transcribe.get() is False)
+            dialog._start(save_only=True)
+            self.assertEqual(saved_options(a.config, 'live').source, 'mix')
+            self.assertEqual(saved_options(a.config, 'live').mode, 'record')
+            dialog.win.destroy()
+        finally:
+            set_language('ja')
+
     def test_gamebar_quick_start_always_asks_for_target_even_with_saved_match(self):
         a=self.app;a.config.capture_setup_complete=True
         options=GameBarOptions(target_hwnd=42,target_title='Meeting',destination=self.folder)

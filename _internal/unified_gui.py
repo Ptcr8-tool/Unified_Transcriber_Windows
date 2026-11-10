@@ -1332,7 +1332,7 @@ class LiveCaptureDialog:
         self.pcm_combo.configure(state='readonly' if fmt in ('wav','flac') else 'disabled')
 
     def _refresh_controls(self):
-        recording_only=self.mode.get() == '録音のみ'
+        recording_only=self.MODES[self.mode.get()] == 'record'
         self.interval_combo.configure(state='disabled' if recording_only else 'readonly')
         self.final_box.configure(state='normal',
             variable=self.post_transcribe if recording_only else self.final_pass,
@@ -1341,6 +1341,8 @@ class LiveCaptureDialog:
         self.live_hint.configure(text='録音中はAI認識を行いません。録音終了後はキューへ追加し、スイッチがONのときだけTXT／CSVを生成します。'
             if recording_only else '区間ごとの速報は .live.txt に出力します。区間をまたぐ話者IDは暫定です。'
             '保存した録音はキューへ追加します。録音終了後の最終解析には、メイン画面で選択した認識方式を使用します。')
+        if get_language() == 'en':
+            translate_widgets(self.win)  # Re-translate descriptions updated on mode change.
 
     def _channel_changed(self):
         if RECORDING_CHANNELS[self.recording_channels.get()][1] == 'split_lr':

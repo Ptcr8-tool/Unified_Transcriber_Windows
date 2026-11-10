@@ -1,0 +1,440 @@
+name: Prepare two-stage TOP stop
+on:
+  push:
+    branches: [fix/two-stage-top-stop-20261110]
+    paths: [.github/workflows/prepare-two-stage-stop.yml]
+permissions:
+  contents: write
+concurrency:
+  group: prepare-two-stage-top-stop
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.repository == 'Ptcr8-tool/Unified_Transcriber_Windows' && github.ref == 'refs/heads/fix/two-stage-top-stop-20261110'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Apply bounded source edits and publish to the feature branch only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import ast, hashlib, json, os, subprocess, urllib.request
+          from pathlib import Path
+
+          repo = 'Ptcr8-tool/Unified_Transcriber_Windows'
+          branch = 'fix/two-stage-top-stop-20261110'
+          assert os.environ['GITHUB_REPOSITORY'] == repo
+          assert os.environ['GITHUB_REF'] == 'refs/heads/' + branch
+          head = os.environ['GITHUB_SHA']
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == head
+          expected = {
+              '_internal/unified_gui.py': '2249a55cba385fc3b2b5b407bd70290fdffd030b',
+              '_internal/studio_ui.py': 'f0783c65c53ec75b957dd4a150ffa4d31d1967d8',
+              '_internal/tests/test_v30_changes.py': '9b3fa3689bfc15a47082b28f8cdebd32ecce5162',
+          }
+          for filename, digest in expected.items():
+              assert subprocess.check_output(['git','hash-object',filename], text=True).strip() == digest, filename
+          def replace_once(text, old, new):
+              assert text.count(old) == 1, 'Source anchor changed: ' + old[:90]
+              return text.replace(old, new, 1)
+          changed = {}
+          path = '_internal/unified_gui.py'
+          text = Path(path).read_text(encoding='utf-8')
+          text = replace_once(text,
+              '        self.all_stop_waiting=False\n        self.active_process:',
+              '        self.all_stop_waiting=False\n        self.top_stop_armed=False\n        self.top_stop_ready_at=0.0\n        self.active_process:')
+          text = replace_once(text,
+              '    def _begin_work(self):\n        self.stop_event.clear()\n        self.all_stop_requested=False\n        self.all_stop_waiting=False',
+              '    def _begin_work(self):\n        self.stop_event.clear()\n        self.all_stop_requested=False\n        self.all_stop_waiting=False\n        self.top_stop_armed=False\n        self.top_stop_ready_at=0.0')
+          methods = '''    def _arm_top_stop(self):
+                  """Normal stop first; allow explicit escalation after a double-click guard."""
+                  if not getattr(self, 'top_stop_armed', False):
+                      self.top_stop_armed = True
+                      self.top_stop_ready_at = time.monotonic() + 0.6
+                  refresh = getattr(getattr(self, 'ui', None), 'refresh_top_stop', None)
+                  if refresh is not None:
+                      refresh()
+
+              def stop_from_top(self):
+                  """TOP: first finish recording normally, then optionally stop all work."""
+                  registry = getattr(self, 'processes', None)
+                  active = self.busy or bool(registry is not None and registry.active())
+                  if not active or getattr(self, 'closing', False):
+                      return
+                  if getattr(self, 'all_stop_requested', False):
+                      return
+                  if getattr(self, 'top_stop_armed', False):
+                      if time.monotonic() >= getattr(self, 'top_stop_ready_at', 0.0):
+                          self.stop_all()
+                      return
+                  if self.busy:
+                      # Preserve the existing normal recording/video finalization,
+                      # queued live chunks, post-recording ASR and audio conversion.
+                      self.stop()
+                  else:
+                      # An owned child may outlive its UI job. Request cooperative
+                      # cancellation before offering the registry-wide stop action.
+                      self._arm_top_stop()
+                      self.stop_event.set()
+
+          '''
+          # Keep indentation independent of this YAML block.
+          import textwrap
+          methods = textwrap.dedent('    ' + methods).replace('\n    def ', '\n    def ')
+          # Use an explicit list for stable class indentation.
+          methods = '\n'.join(line[10:] if line.startswith('          ') else line for line in methods.split('\n'))
+          methods = '''    def _arm_top_stop(self):
+                  """Normal stop first; a short guard avoids accidental double-click escalation."""
+                  if not getattr(self, 'top_stop_armed', False):
+                      self.top_stop_armed = True
+                      self.top_stop_ready_at = time.monotonic() + 0.6
+                  refresh = getattr(getattr(self, 'ui', None), 'refresh_top_stop', None)
+                  if refresh is not None:
+                      refresh()
+
+              def stop_from_top(self):
+                  """TOP: finish recording normally before optionally cancelling all work."""
+                  registry = getattr(self, 'processes', None)
+                  active = self.busy or bool(registry is not None and registry.active())
+                  if not active or getattr(self, 'closing', False):
+                      return
+                  if getattr(self, 'all_stop_requested', False):
+                      return
+                  if getattr(self, 'top_stop_armed', False):
+                      if time.monotonic() >= getattr(self, 'top_stop_ready_at', 0.0):
+                          self.stop_all()
+                      return
+                  if self.busy:
+                      self.stop()
+                  else:
+                      # Handle an owned child outliving its UI job cooperatively.
+                      self._arm_top_stop()
+                      self.stop_event.set()
+
+          '''
+          # After the first line, the embedded literal has ten extra columns.
+          methods = methods.splitlines()
+          methods = methods[0] + '\n' + '\n'.join(line[10:] if line.startswith('          ') else line for line in methods[1:]) + '\n'
+          text = replace_once(text, '    def stop_all(self):', methods + '    def stop_all(self):')
+          text = replace_once(text,
+              '    def stop(self):\n        if not self.busy:return\n        if self.gamebar_active:',
+              '    def stop(self):\n        if not self.busy:return\n        self._arm_top_stop()\n        if self.gamebar_active:')
+          text = replace_once(text,
+              "        self.ui.stop_all_button.configure(state='normal' if active and not getattr(self,'all_stop_requested',False) else 'disabled')",
+              '        self.ui.refresh_top_stop()')
+          changed[path] = text
+
+          path = '_internal/studio_ui.py'
+          text = Path(path).read_text(encoding='utf-8')
+          text = replace_once(text, 'import sys\n', 'import sys\nimport time\n')
+          text = replace_once(text,
+              "self.stop_all_button=IconButton(quick,text='すべて停止',icon='stop',command=a.stop_all,\n            style='Stop.TButton',state='disabled')",
+              "self.stop_all_button=IconButton(quick,text='停止',icon='stop',command=a.stop_from_top,\n            style='TButton',state='disabled')")
+          text = replace_once(text,
+              "        self.stop_all_button.configure(state='normal' if busy and not getattr(self.app,'all_stop_requested',False) else 'disabled')",
+              '        self.refresh_top_stop()')
+          method_lines = [
+              '    def refresh_top_stop(self):',
+              '        """Keep normal stop and the explicit second-stage cancellation distinct."""',
+              '        from ui_locale import translate',
+              '        app = self.app',
+              "        registry = getattr(app, 'processes', None)",
+              '        active = app.busy or bool(registry is not None and registry.active())',
+              '        if not active:',
+              '            app.top_stop_armed = False',
+              '            app.top_stop_ready_at = 0.0',
+              "        armed = bool(getattr(app, 'top_stop_armed', False))",
+              "        stopping_all = bool(getattr(app, 'all_stop_requested', False)) and active",
+              "        label = '停止'",
+              '        if stopping_all:',
+              "            label = 'すべて停止中…'",
+              '        elif armed:',
+              "            label = 'すべて停止'",
+              "        elif active and getattr(app, 'gamebar_active', False):",
+              "            label = '録画を停止'",
+              "        elif active and getattr(app, 'live_active', False):",
+              "            label = '録音を停止'",
+              "        ready = not armed or time.monotonic() >= getattr(app, 'top_stop_ready_at', 0.0)",
+              '        self.stop_all_button._ui_source_text = label',
+              '        self.stop_all_button.configure(',
+              "            text=translate(label, getattr(app.config, 'ui_language', 'ja')),
+              "            style='Stop.TButton' if armed else 'TButton',",
+              "            state='normal' if active and ready and not stopping_all else 'disabled')",
+              '',
+          ]
+          text = replace_once(text, '    def sync_busy(self, busy: bool):', '\n'.join(method_lines) + '\n    def sync_busy(self, busy: bool):')
+          changed[path] = text
+
+          path = '_internal/ui_locale.py'
+          text = Path(path).read_text(encoding='utf-8')
+          text = replace_once(text, '\ndef normalize_language(value: str) -> str:',
+              "\nENGLISH.update({'録音を停止': 'Stop recording', '録画を停止': 'Stop video recording',\n                'すべて停止中…': 'Stopping all…'})\n\ndef normalize_language(value: str) -> str:")
+          changed[path] = text
+          path = '_internal/tests/test_v30_changes.py'
+          text = Path(path).read_text(encoding='utf-8')
+          text = replace_once(text,
+              '  b.invoke();b.invoke();self.assertTrue(a.stop_event.is_set());self.assertTrue(a.live_cancel.is_set());self.assertTrue(a.gamebar_stop.is_set())',
+              "  b.invoke();b.invoke();self.assertTrue(a.stop_event.is_set());self.assertFalse(a.live_cancel.is_set())\n  self.assertFalse(a.all_stop_requested);self.assertTrue(a.pending_speaker_edits)\n  a.top_stop_ready_at=0;a.ui.refresh_top_stop();b.invoke()\n  self.assertTrue(a.live_cancel.is_set());self.assertTrue(a.gamebar_stop.is_set())")
+          changed[path] = text
+
+          tests = r'''"""TOP stop must finalize recordings before the user explicitly cancels everything."""
+          from pathlib import Path
+          import json
+          import queue
+          import sys
+          import tempfile
+          import threading
+          from types import SimpleNamespace
+          import unittest
+          import wave
+          from unittest.mock import Mock, patch
+          sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+          from core import Config
+          from live_config import LiveOptions
+          from unified_gui import UnifiedApp
+          from studio_ui import StudioView
+
+
+          def app_fixture():
+              app = UnifiedApp.__new__(UnifiedApp)
+              app.busy = True
+              app.closing = False
+              app.live_active = False
+              app.gamebar_active = False
+              app.gamebar_live_active = False
+              app.live_stopping = False
+              app.live_stop_file = None
+              app.live_finalize_on_stop = False
+              app.live_chunk_active = False
+              app.stop_event = threading.Event()
+              app.live_cancel = threading.Event()
+              app.gamebar_stop = threading.Event()
+              app.process_lock = threading.Lock()
+              app.active_process = None
+              app.processes = Mock()
+              app.processes.active.return_value = []
+              app.all_stop_requested = False
+              app.all_stop_waiting = False
+              app.top_stop_armed = False
+              app.top_stop_ready_at = 0
+              app.pending_speaker_edits = [Path('sample-transcript.txt')]
+              app.pending_capture_target = 'live'
+              app.watch_mode = False
+              app.quit_when_idle = False
+              app.events = queue.Queue()
+              app.config = Config(device='cpu')
+              app.stop_btn = Mock()
+              app.ui = SimpleNamespace(stop_all_button=Mock(), refresh_top_stop=Mock())
+              app.status = Mock()
+              app.log = Mock()
+              return app
+
+
+          class TopStopTests(unittest.TestCase):
+              def test_live_first_click_keeps_final_asr_and_second_cancels_all(self):
+                  app = app_fixture()
+                  app.live_active = True
+                  with tempfile.TemporaryDirectory() as temp:
+                      app.live_stop_file = Path(temp) / 'stop'
+                      audio = Path(temp) / 'sample.wav'
+                      audio.write_bytes(b'previous recording')
+                      with patch('unified_gui.time.monotonic', return_value=100) as clock:
+                          app.stop_from_top()
+                          self.assertTrue(app.live_stop_file.is_file())
+                          self.assertTrue(app.live_stopping)
+                          self.assertFalse(app.stop_event.is_set())
+                          self.assertFalse(app.live_cancel.is_set())
+                          self.assertFalse(app.all_stop_requested)
+                          self.assertTrue(app.pending_speaker_edits)
+                          app.processes.stop_all.assert_not_called()
+                          clock.return_value = 100.2
+                          app.stop_from_top()
+                          self.assertFalse(app.all_stop_requested)
+                          clock.return_value = 100.7
+                          app.stop_from_top()
+                          self.assertTrue(app.all_stop_requested)
+                          self.assertTrue(app.stop_event.is_set())
+                          self.assertTrue(app.live_cancel.is_set())
+                          self.assertTrue(app.gamebar_stop.is_set())
+                          app.processes.stop_all.assert_called_once()
+                          app.stop_from_top()
+                          app.processes.stop_all.assert_called_once()
+                      self.assertEqual(audio.read_bytes(), b'previous recording')
+
+              def test_gamebar_first_click_is_normal_recording_stop(self):
+                  app = app_fixture()
+                  app.gamebar_active = True
+                  app.gamebar_live_active = True
+                  app.stop_from_top()
+                  self.assertTrue(app.gamebar_stop.is_set())
+                  self.assertFalse(app.stop_event.is_set())
+                  self.assertFalse(app.live_cancel.is_set())
+                  app.processes.stop_all.assert_not_called()
+                  app.top_stop_ready_at = 0
+                  app.stop_from_top()
+                  app.processes.stop_all.assert_called_once()
+
+              def test_nonrecording_job_uses_existing_stop_first(self):
+                  app = app_fixture()
+                  app.stop_from_top()
+                  self.assertTrue(app.stop_event.is_set())
+                  self.assertFalse(app.live_cancel.is_set())
+                  app.processes.stop_all.assert_not_called()
+                  self.assertTrue(app.pending_speaker_edits)
+                  app.top_stop_ready_at = 0
+                  app.stop_from_top()
+                  self.assertFalse(app.pending_speaker_edits)
+                  app.processes.stop_all.assert_called_once()
+
+              def test_idle_is_noop_and_new_work_resets_escalation(self):
+                  app = app_fixture()
+                  app.busy = False
+                  app.stop_from_top()
+                  self.assertFalse(app.top_stop_armed)
+                  app.processes.stop_all.assert_not_called()
+                  app.busy = True
+                  app.live_active = True
+                  app.stop_from_top()
+                  app._begin_work()
+                  self.assertFalse(app.top_stop_armed)
+                  self.assertEqual(app.top_stop_ready_at, 0)
+                  app.stop_from_top()
+                  self.assertFalse(app.all_stop_requested)
+                  app.processes.stop_all.assert_not_called()
+
+              def test_lower_stop_also_arms_explicit_top_escalation(self):
+                  app = app_fixture()
+                  app.live_active = True
+                  app.stop()
+                  self.assertTrue(app.top_stop_armed)
+                  self.assertFalse(app.live_cancel.is_set())
+                  app.top_stop_ready_at = 0
+                  app.stop_from_top()
+                  self.assertTrue(app.live_cancel.is_set())
+
+              def test_registry_only_job_is_cooperative_before_all_stop(self):
+                  app = app_fixture()
+                  app.busy = False
+                  app.processes.active.return_value = [object()]
+                  app.stop_from_top()
+                  self.assertTrue(app.stop_event.is_set())
+                  app.processes.stop_all.assert_not_called()
+                  app.top_stop_ready_at = 0
+                  app.stop_from_top()
+                  app.processes.stop_all.assert_called_once()
+
+              def test_explicit_all_stop_remains_immediate_for_exit(self):
+                  app = app_fixture()
+                  app.live_active = True
+                  app.stop_all()
+                  self.assertTrue(app.all_stop_requested)
+                  app.processes.stop_all.assert_called_once()
+
+              def test_label_guard_idle_reset_and_english(self):
+                  app = app_fixture()
+                  button = Mock()
+                  view = SimpleNamespace(app=app, stop_all_button=button)
+                  app.live_active = True
+                  StudioView.refresh_top_stop(view)
+                  self.assertEqual(button.configure.call_args.kwargs['text'], '録音を停止')
+                  with patch('studio_ui.time.monotonic', return_value=100) as clock:
+                      app.stop_from_top()
+                      StudioView.refresh_top_stop(view)
+                      self.assertEqual(button.configure.call_args.kwargs['text'], 'すべて停止')
+                      self.assertEqual(button.configure.call_args.kwargs['state'], 'disabled')
+                      clock.return_value = 100.7
+                      StudioView.refresh_top_stop(view)
+                      self.assertEqual(button.configure.call_args.kwargs['state'], 'normal')
+                      app.config.ui_language = 'en'
+                      StudioView.refresh_top_stop(view)
+                      self.assertEqual(button.configure.call_args.kwargs['text'], 'Stop all')
+                  app.busy = False
+                  StudioView.refresh_top_stop(view)
+                  self.assertFalse(app.top_stop_armed)
+                  self.assertEqual(button.configure.call_args.kwargs['text'], 'Stop')
+                  self.assertEqual(button.configure.call_args.kwargs['state'], 'disabled')
+
+              def test_normal_top_stop_reaches_post_recording_transcription(self):
+                  app = app_fixture()
+                  del app.processes
+                  app.live_active = True
+                  app._resolve_device = Mock(return_value='cpu')
+                  app._run_one = Mock(return_value=('完了', 'sample'))
+                  app._recognize_live_chunk = Mock()
+                  with tempfile.TemporaryDirectory() as temp:
+                      folder = Path(temp)
+                      class Capture:
+                          def __init__(self, command, **kwargs):
+                              destination = Path(command[command.index('--output') + 1])
+                              with wave.open(str(destination), 'wb') as audio:
+                                  audio.setparams((1, 2, 48000, 0, 'NONE', 'not compressed'))
+                                  audio.writeframes(b'\x10\x00' * 480)
+                              self.stdout = self.lines()
+                          def lines(self):
+                              yield json.dumps({'event': 'started'}) + '\n'
+                              app.stop_from_top()
+                              yield json.dumps({'event': 'finished', 'seconds': .01}) + '\n'
+                          def __enter__(self): return self
+                          def __exit__(self, *args): pass
+                          def wait(self, **kwargs): return 0
+                      with patch('unified_gui.subprocess.Popen', Capture):
+                          app._live_worker(LiveOptions(mode='record', post_transcribe=True,
+                              recording_channels=1, folder=folder), Path(sys.executable),
+                              Path(sys.executable), Config(device='cpu', output_dir=str(folder)), '')
+                      app._run_one.assert_called_once()
+                      self.assertEqual(len(list(folder.glob('*.wav'))), 1)
+                      self.assertFalse(app.stop_event.is_set())
+                      self.assertFalse(app.live_cancel.is_set())
+
+
+          if __name__ == '__main__':
+              unittest.main()
+          '''
+          changed['_internal/tests/test_top_stop.py'] = textwrap.dedent(tests)
+          path = 'README.md'
+          text = Path(path).read_text(encoding='utf-8')
+          note = '## 開発版の変更（配布v1.0.3には未反映）\n\nTOPの停止ボタンは2段階です。1回目は通常停止で録音・録画を保存し、設定された文字起こし・変換を続けます。その後「すべて停止」に切り替わり、もう一度押すと残りの処理も中断します。連打による誤操作を避けるため、切り替え直後は0.6秒間無効になります。下部や録音画面から通常停止した後も、TOPから全停止できます。処理完了・次の処理開始時は通常停止へ戻ります。\n\n'
+          text = replace_once(text, '## 画面プレビュー（v1.0.3）', note + '## 画面プレビュー（v1.0.3）')
+          text = text.replace('TOPの「すべて停止」で全処理を中断できます。', 'TOPは1回目で通常停止、2回目で全停止します（開発版）。')
+          changed[path] = text
+          path = '_internal/docs/USAGE.md'
+          text = Path(path).read_text(encoding='utf-8')
+          old = '- **TOPの「すべて停止」：** 待機中の認識、全文解析、結合、変換、監視、セットアップなども中断します。終了処理が完了してから、次の操作を始めます。'
+          new = '- **TOPの停止ボタン（次回リリース向けの開発版）：** 1回目は通常停止です。録音・録画を保存し、設定された停止後の文字起こしや変換は継続します。ボタンが「すべて停止」に変わった後、もう一度押すと後処理・監視・セットアップなども中断します。切り替え後0.6秒は連打を防ぐため無効です。通常停止を下部や録音画面で実行した場合も同様です。処理完了・次の処理開始時に最初の状態へ戻ります。\n\n配布済みv1.0.3と掲載画像のTOP「すべて停止」は1回で全停止する旧仕様です。アプリ終了時の確認済み全停止は変更していません。'
+          text = replace_once(text, old, new)
+          text = text.replace('すべて中断したいときは、TOPの「すべて停止」を使います。', '開発版のTOPは通常停止後に「すべて停止」へ切り替わります。')
+          changed[path] = text
+          for filename, content in changed.items():
+              if filename.endswith('.py'):
+                  ast.parse(content, filename=filename)
+              Path(filename).write_text(content, encoding='utf-8', newline='\n')
+          subprocess.run(['git', 'diff', '--check'], check=True)
+          assert set(changed) == {'_internal/unified_gui.py','_internal/studio_ui.py','_internal/ui_locale.py','_internal/tests/test_v30_changes.py','_internal/tests/test_top_stop.py','README.md','_internal/docs/USAGE.md'}
+          token = os.environ['GH_TOKEN']
+          def api(route, data=None, method=None):
+              url = 'https://api.github.com/repos/' + repo + '/' + route
+              payload = json.dumps(data).encode() if data is not None else None
+              request = urllib.request.Request(url, data=payload, method=method,
+                  headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+          ref = api('git/ref/heads/' + branch)
+          assert ref['object']['sha'] == head, 'Concurrent branch update; do not overwrite'
+          base = api('git/commits/' + head)
+          entries = []
+          for filename, content in changed.items():
+              blob = api('git/blobs', {'content': content, 'encoding': 'utf-8'})
+              entries.append({'path': filename, 'mode': '100644', 'type': 'blob', 'sha': blob['sha']})
+          tree = api('git/trees', {'base_tree': base['tree']['sha'], 'tree': entries})
+          commit = api('git/commits', {'tree': tree['sha'], 'parents': [head],
+              'message': 'Make TOP stop finalize recordings before explicit all-stop escalation\n\nPreserve normal save/post-processing, gate accidental double clicks, reset for each task, retain immediate confirmed exit cancellation, and add regression coverage.',
+              'author': {'name': 'Ptcr8', 'email': '182083273+Ptcr8@users.noreply.github.com'}})
+          assert api('git/ref/heads/' + branch)['object']['sha'] == head
+          api('git/refs/heads/' + branch, {'sha': commit['sha'], 'force': False}, method='PATCH')
+          print('Prepared source commit:', commit['sha'])
+          print('Changed files:', ', '.join(changed))
+          PY

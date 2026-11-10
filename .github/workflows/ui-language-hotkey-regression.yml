@@ -15,6 +15,8 @@ on:
       - _internal/tests/test_ui_locale.py
       - _internal/tests/test_app_hotkeys.py
       - _internal/tests/test_capture_output_defaults.py
+      - _internal/tests/test_v29_navigation.py
+      - _internal/tests/test_navigation_panel.py
       - .github/workflows/ui-language-hotkey-regression.yml
   workflow_dispatch:
 
@@ -55,4 +57,11 @@ jobs:
           python -m unittest discover -s _internal/tests -p test_installer_ui.py -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s _internal/tests -p test_v27_gui.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Navigation inventory and menu keyboard regression
+        shell: pwsh
+        run: |
+          python -m unittest discover -s _internal/tests -p test_v29_navigation.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s _internal/tests -p test_navigation_panel.py -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

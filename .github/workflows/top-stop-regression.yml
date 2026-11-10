@@ -1,0 +1,46 @@
+name: Verify two-stage TOP stop
+on:
+  pull_request:
+    paths:
+      - _internal/unified_gui.py
+      - _internal/studio_ui.py
+      - _internal/ui_locale.py
+      - _internal/tests/test_top_stop.py
+      - _internal/tests/test_v30_changes.py
+      - .github/workflows/top-stop-regression.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  top-stop-windows:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: _internal
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+      - name: Compile source and verify patch formatting
+        shell: pwsh
+        run: |
+          python -m compileall -q _internal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test normal stop before escalation and recording preservation
+        shell: pwsh
+        run: |
+          python -m unittest discover -s _internal/tests -p test_top_stop.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test actual Tk controls, capture finalization and all-stop regressions
+        shell: pwsh
+        run: |
+          foreach ($suite in @('test_v27_gui.py', 'test_v30_changes.py', 'test_v28_live.py', 'test_recorded_queue.py', 'test_ui_locale.py')) {
+            python -m unittest discover -s _internal/tests -p $suite -v
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }

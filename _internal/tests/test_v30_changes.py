@@ -197,7 +197,10 @@ class GuiTests(fixtures.StudioGUIFixture):
  def test_top_stop_flags_and_idle_state(self):
   a=self.app;b=a.ui.stop_all_button;self.assertEqual(str(b.cget('state')),'disabled');a._set_busy(True)
   a.pending_speaker_edits.append(self.folder/'result.txt');a.pending_capture_target='gamebar'
-  b.invoke();b.invoke();self.assertTrue(a.stop_event.is_set());self.assertTrue(a.live_cancel.is_set());self.assertTrue(a.gamebar_stop.is_set())
+  b.invoke();b.invoke();self.assertTrue(a.stop_event.is_set());self.assertFalse(a.live_cancel.is_set())
+  self.assertFalse(a.all_stop_requested);self.assertTrue(a.pending_speaker_edits)
+  a.top_stop_ready_at=0;a.ui.refresh_top_stop();b.invoke()
+  self.assertTrue(a.live_cancel.is_set());self.assertTrue(a.gamebar_stop.is_set())
   self.assertFalse(a.pending_speaker_edits);self.assertIsNone(a.pending_capture_target);self.assertTrue(a.busy)
   a.events.put(('done','中止'));a._poll();self.assertFalse(a.busy);self.assertIn('すべての処理を停止しました',a.status.get())
   a._begin_work();a._set_busy(True);self.assertEqual(str(b.cget('state')),'normal')

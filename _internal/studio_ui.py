@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import time
 import tkinter as tk
 from tkinter import font as tkfont, messagebox, ttk
 import webbrowser
@@ -525,8 +526,8 @@ class StudioView:
         self.gamebar_shortcut = IconButton(quick, text='▣ Game Bar連動',
             command=lambda: a.open_capture('gamebar'))
         self.gamebar_shortcut.pack(side='left')
-        self.stop_all_button=IconButton(quick,text='すべて停止',icon='stop',command=a.stop_all,
-            style='Stop.TButton',state='disabled')
+        self.stop_all_button=IconButton(quick,text='停止',icon='stop',command=a.stop_from_top,
+            style='TButton',state='disabled')
         self.stop_all_button.pack(side='left',padx=(12,0))
         self.guide_button = IconButton(quick, text='画面付き操作ガイド', icon='help',
             command=lambda: open_illustrated_guide(a.root))
@@ -834,9 +835,36 @@ class StudioView:
         description = profile.description.rstrip('。 ') + '。'
         self.app.profile_note.configure(text=description)
 
+    def refresh_top_stop(self):
+        """Keep normal stop and the explicit second-stage cancellation distinct."""
+        from ui_locale import translate
+        app = self.app
+        registry = getattr(app, 'processes', None)
+        active = app.busy or bool(registry is not None and registry.active())
+        if not active:
+            app.top_stop_armed = False
+            app.top_stop_ready_at = 0.0
+        armed = bool(getattr(app, 'top_stop_armed', False))
+        stopping_all = bool(getattr(app, 'all_stop_requested', False)) and active
+        label = '停止'
+        if stopping_all:
+            label = 'すべて停止中…'
+        elif armed:
+            label = 'すべて停止'
+        elif active and getattr(app, 'gamebar_active', False):
+            label = '録画を停止'
+        elif active and getattr(app, 'live_active', False):
+            label = '録音を停止'
+        ready = not armed or time.monotonic() >= getattr(app, 'top_stop_ready_at', 0.0)
+        self.stop_all_button._ui_source_text = label
+        self.stop_all_button.configure(
+            text=translate(label, getattr(app.config, 'ui_language', 'ja')),
+            style='Stop.TButton' if armed else 'TButton',
+            state='normal' if active and ready and not stopping_all else 'disabled')
+
     def sync_busy(self, busy: bool):
         self.close_drawers()
-        self.stop_all_button.configure(state='normal' if busy and not getattr(self.app,'all_stop_requested',False) else 'disabled')
+        self.refresh_top_stop()
         for control in self.idle_controls:
             control.configure(state='disabled' if busy else 'normal')
         self.profile_box.configure(state='disabled' if busy else 'readonly')

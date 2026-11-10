@@ -234,6 +234,9 @@ ENGLISH.update({
     '保存先と必要な構成を選び、開始してください。': 'Choose installation options and start setup.',
 })
 
+ENGLISH.update({'録音を停止': 'Stop recording', '録画を停止': 'Stop video recording',
+                'すべて停止中…': 'Stopping all…'})
+
 def normalize_language(value: str) -> str:
     if value not in ('ja', 'en'):
         raise ValueError('UI language must be ja or en.')

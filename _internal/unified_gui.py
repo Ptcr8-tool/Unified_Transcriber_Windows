@@ -1180,7 +1180,7 @@ class LiveCaptureDialog:
         ttk.Label(frame, text='音声を連続録音しながら、別処理で区間ごとに文字起こし',
                   font=(UI_FONT, 12, 'bold')).pack(anchor='w', pady=(0,12))
         self.mode = tk.StringVar(value='録音＋文字起こし')
-        self.source = tk.StringVar(value='マイク入力')
+        self.source = tk.StringVar(value='マイク＋PC再生音（同時録音）')
         self.interval = tk.StringVar(value='20')
         self.folder = tk.StringVar(value=str(app.config.live_recording_dir or default_directory('recordings')))
         self.final_pass = tk.BooleanVar(value=True)

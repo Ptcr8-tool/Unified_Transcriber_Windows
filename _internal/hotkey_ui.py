@@ -3,16 +3,19 @@ import tkinter as tk
 from tkinter import ttk
 from ui_icons import IconButton
 from dataclasses import replace
-from app_hotkeys import ACTION_LABELS, normalize_hotkey, tk_shortcut, validate_shortcuts
+from app_hotkeys import (ACTION_LABELS, normalize_hotkey, tk_shortcut,
+                         validate_shortcuts, probe_global_hotkey)
 from core import save_config
 
 
 class KeyCaptureDialog:
-    def __init__(self, parent, current, apply, manager=None, allow_function_only=True):
+    def __init__(self, parent, current, apply, manager=None, allow_function_only=True,
+                 validator=None):
         from unified_gui import modal
         self.previous_grab=parent.grab_current()
         self.manager=manager
         self.allow_function_only=allow_function_only
+        self.validator=validator
         if manager:
             manager.suspend(True)
         self.win=modal(parent,'ショートカットキーを入力',570)
@@ -26,18 +29,40 @@ class KeyCaptureDialog:
                   ('F1～F11は単独でも使えます。' if allow_function_only else ''),
                   wraplength=520,style='Muted.TLabel').pack(anchor='w',pady=(8,12))
         ttk.Label(panel,textvariable=self.value,font=('Segoe UI',17,'bold'),padding=14).pack(fill='x')
+        self.availability=tk.StringVar(self.win,'')
+        ttk.Label(panel,textvariable=self.availability,wraplength=510,
+                  style='Muted.TLabel').pack(anchor='w',pady=(5,8))
         foot=ttk.Frame(panel);foot.pack(side='bottom',fill='x')
         IconButton(foot,text='解除',command=lambda:self.value.set('')).pack(side='left')
         IconButton(foot,text='キャンセル',command=self.close).pack(side='right',padx=(8,0))
         def accept():
-            apply(self.value.get());self.close()
-        IconButton(foot,text='このキーを使う',style='Primary.TButton',command=accept).pack(side='right')
+            if self._check_available():
+                apply(self.value.get())
+                self.close()
+        self.apply_button=IconButton(foot,text='このキーを使う',style='Primary.TButton',command=accept)
+        self.apply_button.pack(side='right')
+        self.value.trace_add('write',lambda *_:self._check_available())
+        self._check_available()
         self.win.bind('<KeyPress>',self._press)
         self.win.bind('<KeyRelease>',self._release)
         self.win.protocol('WM_DELETE_WINDOW',self.close)
         self.win.bind('<Escape>',lambda _e:self.close())
         self.win.bind('<Destroy>',lambda e:self._restore() if e.widget is self.win else None,add='+')
         self.win.after_idle(self.win.focus_force)
+
+    def _check_available(self):
+        value=self.value.get()
+        try:
+            if self.validator is not None:
+                self.validator(value)
+            available, explanation = probe_global_hotkey(value) if self.validator is not None else (
+                True, '録画用のキーはWindowsのGame Bar側でも設定してください。')
+            allowed = available is not False
+        except (ValueError, OSError, AttributeError) as exc:
+            allowed, explanation = False, str(exc)
+        self.availability.set(explanation)
+        self.apply_button.state(['!disabled'] if allowed else ['disabled'])
+        return allowed
 
     def _press(self,event):
         value=tk_shortcut(event,self.pressed,self.allow_function_only)
@@ -84,17 +109,35 @@ class ShortcutSettingsDialog:
             ttk.Label(row,text=label,width=26).pack(side='left')
             var=self.variables[key]=tk.StringVar(self.win,app.config.shortcut_keys.get(key,''))
             ttk.Entry(row,textvariable=var,state='readonly').pack(side='left',fill='x',expand=True)
-            IconButton(row,text='キー入力…',command=lambda v=var:KeyCaptureDialog(
-                self.win,v.get(),v.set,getattr(app,'hotkeys',None))).pack(side='left',padx=(8,0))
+            def validate_candidate(candidate, action=key):
+                values={name:normalize_hotkey(v.get()) for name,v in self.variables.items()}
+                values[action]=normalize_hotkey(candidate)
+                validate_shortcuts(values,app.config.gamebar_shortcut)
+            IconButton(row,text='キー入力…',command=lambda v=var, f=validate_candidate:KeyCaptureDialog(
+                self.win,v.get(),v.set,getattr(app,'hotkeys',None),validator=f)).pack(side='left',padx=(8,0))
         foot=ttk.Frame(panel);foot.pack(side='bottom',fill='x')
         def save():
             try:
                 values={key:normalize_hotkey(var.get()) for key,var in self.variables.items()}
                 validate_shortcuts(values,app.config.gamebar_shortcut)
-                cfg=replace(app.config,shortcut_keys=values)
-                save_config(cfg);app.config=cfg;app.configure_shortcuts()
+                # Free this application's own registrations, then ask Windows
+                # whether *every* candidate can be registered. Do not persist
+                # shortcuts that are already owned by another application.
+                manager=getattr(app,'hotkeys',None)
+                if manager:
+                    manager.suspend(True)
+                try:
+                    for action,value in values.items():
+                        ok,message=probe_global_hotkey(value)
+                        if ok is False:
+                            raise ValueError(f'{ACTION_LABELS[action]}: {message}')
+                    cfg=replace(app.config,shortcut_keys=values)
+                    save_config(cfg);app.config=cfg;app.configure_shortcuts()
+                finally:
+                    if manager:
+                        manager.suspend(False)
                 self.win.destroy()
-            except (ValueError,OSError) as exc:
+            except (ValueError,OSError,AttributeError) as exc:
                 show_error(self.win,str(exc))
         IconButton(foot,text='キャンセル',command=self.win.destroy).pack(side='right',padx=(8,0))
         IconButton(foot,text='保存',style='Primary.TButton',command=save).pack(side='right')

@@ -40,6 +40,45 @@ def validate_shortcuts(mapping, recording_shortcut='win+alt+r'):
         raise ValueError('Game Bar側の録画開始キーとアプリのショートカットは別のキーにしてください。')
 
 
+
+def probe_global_hotkey(value):
+    """Check a shortcut *before* saving, without keeping it registered.
+
+    Returns (True, explanation) if RegisterHotKey works, (False, explanation)
+    if occupied/reserved, or (None, explanation) on non-Windows platforms.
+    Another app may claim the key later; runtime registration still checks.
+    Callers holding the app's own registered shortcuts must suspend those
+    registrations during this temporary probe.
+    """
+    value = normalize_hotkey(value)
+    if not value:
+        return True, '未設定（ショートカットなし）'
+    if value == 'f12' or value.endswith('+f12'):
+        return False, 'F12はWindowsに予約されています。別のキーを選択してください。'
+    if sys.platform != 'win32':
+        return None, 'Windows以外ではシステム全体のキー競合を確認できません。'
+    from ctypes import wintypes
+    api = ctypes.WinDLL('user32', use_last_error=True)
+    api.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_uint32, ctypes.c_uint32]
+    api.RegisterHotKey.restype = wintypes.BOOL
+    api.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
+    api.UnregisterHotKey.restype = wintypes.BOOL
+    parts = value.split('+')
+    flags = 0x4000  # MOD_NOREPEAT
+    for modifier, bit in (('alt', 1), ('ctrl', 2), ('shift', 4), ('win', 8)):
+        if modifier in parts:
+            flags |= bit
+    # Application-owned ID (not the global ATOM range). Register and release on
+    # the same thread; never intercept the user's hotkey during a probe.
+    identity = 0x3F17
+    if not api.RegisterHotKey(None, identity, flags, KEYS[parts[-1]]):
+        return False, 'このキーはすでに使用中、またはWindowsで予約されています。変更してください。'
+    try:
+        return True, 'このキーは現在登録可能です（使用時にも再確認します）。'
+    finally:
+        api.UnregisterHotKey(None, identity)
+
+
 def tk_shortcut(event, pressed, allow_function_only=True):
     """Read actual key events; accept left/right modifiers and function keys."""
     symbol = str(event.keysym).lower()

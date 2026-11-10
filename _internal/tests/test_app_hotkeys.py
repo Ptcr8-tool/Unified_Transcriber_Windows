@@ -13,6 +13,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app_hotkeys import WindowsHotkeys
 
 
+
+class HotkeyPreflightTests(unittest.TestCase):
+    def test_non_windows_explains_probe_limit_without_false_rejection(self):
+        from app_hotkeys import probe_global_hotkey
+        with patch('app_hotkeys.sys.platform', 'linux'):
+            usable, reason = probe_global_hotkey('ctrl+shift+f9')
+        self.assertIsNone(usable)
+        self.assertIn('Windows', reason)
+
+    def test_reserved_f12_rejected_before_native_registration(self):
+        from app_hotkeys import probe_global_hotkey
+        self.assertFalse(probe_global_hotkey('ctrl+f12')[0])
+
+    def test_win32_register_unregistered_for_probe_success_and_conflict(self):
+        from app_hotkeys import probe_global_hotkey
+        user32 = SimpleNamespace(RegisterHotKey=MagicMock(return_value=True),
+                                 UnregisterHotKey=MagicMock())
+        with patch('app_hotkeys.sys.platform', 'win32'), \
+             patch.object(ctypes, 'WinDLL', return_value=user32, create=True):
+            usable, _msg = probe_global_hotkey('ctrl+shift+f8')
+            self.assertTrue(usable)
+            self.assertEqual(user32.RegisterHotKey.call_count, 1)
+            self.assertEqual(user32.UnregisterHotKey.call_count, 1)
+            user32.RegisterHotKey.return_value = False
+            usable, message = probe_global_hotkey('ctrl+shift+f9')
+            self.assertFalse(usable)
+            self.assertIn('使用中', message)
+            self.assertEqual(user32.UnregisterHotKey.call_count, 1)
+
 class HotkeyShutdownTests(unittest.TestCase):
     def test_close_waits_for_native_unregister_and_releases_owner_on_caller_thread(self):
         api = SimpleNamespace(**{name: MagicMock() for name in

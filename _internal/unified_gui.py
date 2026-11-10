@@ -2250,6 +2250,8 @@ class UnifiedApp:
         self.processes=ProcessRegistry(self.stop_event)
         self.all_stop_requested=False
         self.all_stop_waiting=False
+        self.top_stop_armed=False
+        self.top_stop_ready_at=0.0
         self.active_process:subprocess.Popen | None=None
         self.process_lock=threading.Lock()
         self.cpu_limit=WindowsCpuLimit()
@@ -3485,10 +3487,40 @@ class UnifiedApp:
         self.stop_event.clear()
         self.all_stop_requested=False
         self.all_stop_waiting=False
+        self.top_stop_armed=False
+        self.top_stop_ready_at=0.0
 
     @staticmethod
     def _kill(proc):
         kill_owned_process(proc)
+
+    def _arm_top_stop(self):
+        """Normal stop first; guard accidental double-click escalation."""
+        if not getattr(self, 'top_stop_armed', False):
+            self.top_stop_armed = True
+            self.top_stop_ready_at = time.monotonic() + 0.6
+        refresh = getattr(getattr(self, 'ui', None), 'refresh_top_stop', None)
+        if refresh is not None:
+            refresh()
+
+    def stop_from_top(self):
+        """TOP: normal finalization first, explicit all-stop second."""
+        registry = getattr(self, 'processes', None)
+        active = self.busy or bool(registry is not None and registry.active())
+        if not active or getattr(self, 'closing', False):
+            return
+        if getattr(self, 'all_stop_requested', False):
+            return
+        if getattr(self, 'top_stop_armed', False):
+            if time.monotonic() >= getattr(self, 'top_stop_ready_at', 0.0):
+                self.stop_all()
+            return
+        if self.busy:
+            self.stop()
+        else:
+            # An owned child may outlive its UI job.
+            self._arm_top_stop()
+            self.stop_event.set()
 
     def stop_all(self):
         registry=getattr(self,'processes',None)
@@ -3512,6 +3544,7 @@ class UnifiedApp:
 
     def stop(self):
         if not self.busy:return
+        self._arm_top_stop()
         if self.gamebar_active:
             self.gamebar_stop.set()
             if getattr(self,'gamebar_live_active',False) and not self.live_stopping:
@@ -4708,7 +4741,7 @@ class UnifiedApp:
         if queue_changed:
             self._refresh_queue_display()
         active=self.busy or bool(self.processes.active())
-        self.ui.stop_all_button.configure(state='normal' if active and not getattr(self,'all_stop_requested',False) else 'disabled')
+        self.ui.refresh_top_stop()
         if not active and getattr(self,'all_stop_waiting',False):
             self.all_stop_waiting=False
             self.status.set('すべての処理を停止しました。保存済みのファイルは保持しています。')

@@ -231,13 +231,15 @@ def update_setup_preferences(target: Path, *, minimal: bool, hardware: str,
     path = target / 'Data/settings.json'
     if path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256:
         return  # An app opened during setup may already have saved user choices.
-    values = _read_settings(path)
-    # Existing malformed/future settings are never rewritten just for locale.
+    # Validate the original settings *before* _read_settings, which raises on
+    # malformed JSON. Never rewrite user-owned corrupt or future-format bytes.
     try:
-        if not isinstance(json.loads(path.read_text(encoding='utf-8-sig')), dict):
+        original = json.loads(path.read_text(encoding='utf-8-sig'))
+        if not isinstance(original, dict):
             return
     except (ValueError, UnicodeError, OSError, TypeError):
         return
+    values = _read_settings(path)
     if ui_language is not None:
         values['ui_language'] = normalize_language(ui_language)
     if minimal and initial_preferences:

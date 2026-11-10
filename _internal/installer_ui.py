@@ -241,7 +241,11 @@ def update_setup_preferences(target: Path, *, minimal: bool, hardware: str,
         return
     values = _read_settings(path)
     if ui_language is not None:
-        values['ui_language'] = normalize_language(ui_language)
+        chosen_language = normalize_language(ui_language)
+        # Old settings without this field already imply Japanese. A routine
+        # upgrade with the same language must keep the original bytes intact.
+        if chosen_language != values.get('ui_language', 'ja'):
+            values['ui_language'] = chosen_language
     if minimal and initial_preferences:
         values.update(profile='faster-res', device=hardware, model_faster=model)
     # The welcome dialog requests the recommended environment and model.  Mark
@@ -255,6 +259,8 @@ def update_setup_preferences(target: Path, *, minimal: bool, hardware: str,
         values['onboarding_seen'] = True
     if recording_ready:
         values['capture_setup_complete'] = True
+    if values == original:
+        return  # Preserve exact bytes/formatting if no preferences changed.
     with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent,
             prefix='.setup-preferences-', suffix='.tmp', delete=False) as stream:
         staged = Path(stream.name)

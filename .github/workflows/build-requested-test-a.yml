@@ -1,0 +1,200 @@
+name: Build requested v1.0.3-a test installer
+
+on:
+  push:
+    branches: ['build/test-v1.0.3-a-20261110']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: requested-test-installer-v1.0.3-a
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.repository == 'Ptcr8-tool/Unified_Transcriber_Windows' && github.ref == 'refs/heads/build/test-v1.0.3-a-20261110'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      source_commit: ${{ steps.prepare.outputs.source_commit }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Commit test identity on this isolated branch only
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/build/test-v1.0.3-a-20261110'
+          git merge-base --is-ancestor 3b33f0dad814008d65f294f9f12579827a0a360e HEAD
+          python3 - <<'PY'
+          from pathlib import Path
+          version = Path('VERSION').read_text(encoding='utf-8').strip()
+          assert version in ('1.0.3', '1.0.3-a'), 'Unexpected version; do not overwrite'
+          core = Path('_internal/core.py')
+          text = core.read_text(encoding='utf-8')
+          previous = "APP_VERSION = '" + version + "'"
+          assert text.count(previous) == 1
+          core.write_text(text.replace(previous, "APP_VERSION = '1.0.3-a'"), encoding='utf-8', newline='\n')
+          Path('VERSION').write_text('1.0.3-a\n', encoding='utf-8')
+          notes = '''# v1.0.3-a test installer / 検証用
+
+          Base: main commit 3b33f0dad814008d65f294f9f12579827a0a360e.
+          This is a manual test build, not a stable release or automatic update.
+
+          ## Included changes / 変更内容
+          - TOP stop: normal recording finalization first; explicit second click cancels remaining work. Rapid double clicks are guarded for 0.6 seconds.
+          - Default new audio source: microphone + PC playback. Previously saved choices are retained.
+          - Japanese/English display language: first installer screen and application settings; OS language initializes new installs, unsupported languages use English, unavailable locale uses Japanese. Speech-recognition language is separate. Some advanced messages are still Japanese.
+          - Check Windows global shortcut availability before accepting and saving a shortcut.
+          - More tolerant automatic-update timeouts, download progress and cancellation.
+
+          ## Test safely / 利用上の注意
+          Prefer a separate test installation folder and a separate output folder. Before upgrading an existing installation, export settings and back up recordings/transcripts.
+          This test executable is not Authenticode code-signed. Do not disable endpoint security; if organizational policy blocks execution, use an approved environment or ask its administrator.
+          A Defender scan and installer smoke test are required before this executable is uploaded. These checks do not guarantee compatibility with every PC, microphone or security product.
+          No stable release, existing tag or public release asset is replaced by this workflow.
+          '''
+          Path('TESTING_v1.0.3-a.md').write_text(notes, encoding='utf-8')
+          PY
+          git add VERSION _internal/core.py TESTING_v1.0.3-a.md
+          if ! git diff --cached --quiet; then
+            git -c user.name=Ptcr8 -c user.email=182083273+Ptcr8@users.noreply.github.com commit -m 'Identify requested test installer as v1.0.3-a; preserve stable release'
+            git push origin HEAD:refs/heads/build/test-v1.0.3-a-20261110
+          fi
+          echo "source_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  windows:
+    needs: prepare
+    runs-on: windows-2025
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      SOURCE_COMMIT: ${{ needs.prepare.outputs.source_commit }}
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Preserve deterministic source bytes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ needs.prepare.outputs.source_commit }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+          architecture: x64
+          check-latest: true
+      - name: Validate source and record exact build manifest
+        run: |
+          @'
+          import ast, hashlib, json, os, subprocess
+          from pathlib import Path
+          version = Path('VERSION').read_text().strip()
+          assert version == '1.0.3-a'
+          assert f"APP_VERSION = '{version}'" in Path('_internal/core.py').read_text()
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip() == os.environ['SOURCE_COMMIT']
+          for path in Path('_internal').rglob('*.py'):
+              ast.parse(path.read_text(encoding='utf-8-sig'),filename=str(path),feature_version=(3,11))
+          names = subprocess.check_output(['git','ls-files','-z']).decode('utf-8').split('\0')
+          files = {name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in sorted(names) if name}
+          digest = hashlib.sha256(json.dumps(files,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          Path('dist').mkdir(exist_ok=True)
+          Path('dist/SOURCE_MANIFEST.json').write_text(json.dumps({'source_commit':os.environ['SOURCE_COMMIT'],'sha256':digest,'files':files},indent=2)+'\n',encoding='utf-8')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check menu activation and new UI regressions before compiling
+        env:
+          PYTHONPATH: '_internal;_internal/tests'
+        run: |
+          python -m unittest -v test_top_stop test_ui_locale test_app_hotkeys test_capture_output_defaults test_app_updates test_update_ui test_v27_gui test_navigation_panel test_v29_navigation test_guide_top 2>&1 | Tee-Object -FilePath dist/TARGETED_TESTS.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build pinned CPython runtime and verify native dependencies
+        run: |
+          python _internal/tools/build_windows.py snapshot-runtime --work "$env:RUNNER_TEMP\unified-build"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Create isolated build and test environment
+        run: |
+          & "$env:RUNNER_TEMP\unified-build\Runtime\python.exe" -m venv "$env:RUNNER_TEMP\unified-build-env"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" -m pip --isolated install --require-hashes --only-binary=:all: --no-input -r _internal/tools/requirements-build.lock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" -m pip --isolated check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run complete Windows regression suite
+        env:
+          PYTHONPATH: _internal
+        run: |
+          & "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" -m pip --isolated install --no-input --require-hashes --only-binary=:all: -r _internal/tools/requirements-tests-windows.lock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" -m unittest discover -s _internal/tests -v 2>&1 | Tee-Object -FilePath dist/WINDOWS_TESTS.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build v1.0.3-a setup executable
+        run: |
+          & "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" _internal/tools/build_windows.py build --work "$env:RUNNER_TEMP\unified-build" --output dist --repository-id "$env:GITHUB_REPOSITORY_ID" --source-commit "$env:SOURCE_COMMIT"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify executable version resources
+        run: |
+          $targets = @('dist/Unified_Transcriber_Setup_v1.0.3-a.exe', "$env:RUNNER_TEMP\unified-build\payload\UnifiedTranscriber.exe")
+          $checks = foreach ($target in $targets) {
+            $info = (Get-Item -LiteralPath $target).VersionInfo
+            if ($info.FileVersion -cne '1.0.3-a' -or $info.ProductVersion -cne '1.0.3-a') { throw "Incorrect display version in $target" }
+            if ($info.FileMajorPart -ne 1 -or $info.FileMinorPart -ne 0 -or $info.FileBuildPart -ne 3 -or $info.FilePrivatePart -ne 1) { throw "Incorrect numeric version in $target" }
+            [ordered]@{file=(Split-Path -Leaf $target);file_version=$info.FileVersion;product_version=$info.ProductVersion;numeric_version='1.0.3.1'}
+          }
+          [ordered]@{version='1.0.3-a';source_commit=$env:SOURCE_COMMIT;checked=$true;files=@($checks)} | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 dist/VERSION_CHECK.json
+      - name: Verify installation, launch, repair, migration and uninstall
+        run: |
+          & "$env:RUNNER_TEMP\unified-build-env\Scripts\python.exe" _internal/tools/windows_smoke.py --work "$env:RUNNER_TEMP\unified-build" --dist dist
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Scan final setup and complete payload with Microsoft Defender
+        run: |
+          & _internal/tools/defender_scan.ps1 -ScanPath @('dist\Unified_Transcriber_Setup_v1.0.3-a.exe', "$env:RUNNER_TEMP\unified-build\payload") -ReportPath dist/DEFENDER_SCAN.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify unchanged scan targets and final setup digest
+        run: |
+          $setupPath = (Resolve-Path -LiteralPath 'dist/Unified_Transcriber_Setup_v1.0.3-a.exe').Path
+          $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $setupPath).Hash.ToLowerInvariant()
+          $scan = Get-Content -Raw -Encoding utf8 -LiteralPath 'dist/DEFENDER_SCAN.json' | ConvertFrom-Json
+          if ($scan.status -ne 'clean' -or $scan.clean -ne $true -or $scan.artifacts_unchanged -ne $true) { throw 'A clean unchanged Defender scan is required' }
+          foreach ($property in @('artifact_inventory_before','artifact_inventory_after')) {
+            $matches = @($scan.$property | Where-Object { $_.path -eq $setupPath })
+            if ($matches.Count -ne 1 -or $matches[0].sha256 -cne $digest) { throw 'Setup digest differs from Defender scan' }
+          }
+          "Tested v1.0.3-a installer SHA256: $digest" >> $env:GITHUB_STEP_SUMMARY
+      - name: Upload verified test installer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Unified-Transcriber-Windows-1.0.3-a
+          path: |
+            dist/Unified_Transcriber_Setup_v1.0.3-a.exe
+            dist/SHA256SUMS.txt
+            dist/BUILD_INFO.json
+            dist/VERSION_CHECK.json
+            dist/WINDOWS_SMOKE.json
+            dist/DEFENDER_SCAN.json
+            TESTING_v1.0.3-a.md
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve diagnostic reports even if the build fails
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Unified-Transcriber-Test-1.0.3-a-Reports
+          path: |
+            dist/*.json
+            dist/*TESTS.txt
+          if-no-files-found: warn
+          retention-days: 14

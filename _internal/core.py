@@ -113,7 +113,8 @@ class Config:
     qwen_model: str = QWEN_MODEL
     qwen_aligner: str = QWEN_ALIGNER
     qwen_max_tokens: int = 4096
-    language: str = 'ja'
+    language: str = 'ja'  # Recognized speech language (unchanged by UI language)
+    ui_language: str = 'ja'  # Display language, independent of ASR
     device: str = 'auto'    # auto resolves CUDA capability inside selected environment
     compute_type: str = 'auto'
     max_speakers: int = 6
@@ -198,6 +199,8 @@ class Config:
             raise ValueError('更新確認は毎回・1〜365日ごと・なしから選択してください。')
         if len(self.update_last_checked) > 64:
             raise ValueError('更新確認日時を確認してください。')
+        if self.ui_language not in ('ja', 'en'):
+            raise ValueError('画面表示言語は日本語または英語を選択してください。')
         if self.theme_mode not in ('system', 'light', 'dark'):
             raise ValueError('テーマは system / light / dark を指定してください。')
         for key in ('output_same_as_input', 'auto_open_speaker', 'onboarding_seen', 'capture_setup_complete',

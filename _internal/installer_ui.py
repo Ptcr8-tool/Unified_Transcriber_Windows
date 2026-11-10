@@ -21,6 +21,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from core import APP_VERSION, Config
+from ui_locale import (LANGUAGES, normalize_language, set_language, system_language,
+                       translate_widgets)
 from installation import (InstallationError, get_verified_maintenance_path, inspect_installation, install_package,
                           uninstall_installation, validate_package, version_tuple)
 from portable_runtime import MAX_CONFIG_BYTES, reset_dll_search_path, runtime_environment, setup_selected
@@ -185,7 +187,8 @@ def relaunch_outside(target: Path, argv: list[str]) -> bool:
 
 
 def seed_preferences(target: Path, *, minimal: bool, hardware: str, recording_ready: bool,
-                     output_location: str = '', model: str = 'large-v3-turbo') -> bool:
+                     output_location: str = '', model: str = 'large-v3-turbo',
+                     ui_language: str | None = None) -> bool:
     path = target / 'Data' / 'settings.json'
     # Existing settings, including newer/unknown fields or malformed JSON the
     # user may want to recover, belong to the user. Never reserialize them here.
@@ -211,6 +214,7 @@ def seed_preferences(target: Path, *, minimal: bool, hardware: str, recording_re
     cfg = Config(profile='faster-res' if minimal else Config().profile,
                  device=hardware if minimal else 'auto', capture_setup_complete=recording_ready,
                  onboarding_seen=minimal,
+                 ui_language=normalize_language(ui_language) if ui_language else 'ja',
                  output_root=validate_output_root(output_location), model_faster=model)
     cfg.validate()
     values = asdict(cfg)
@@ -220,13 +224,28 @@ def seed_preferences(target: Path, *, minimal: bool, hardware: str, recording_re
 
 def update_setup_preferences(target: Path, *, minimal: bool, hardware: str,
                              recording_ready: bool, model: str, expected_sha256: str,
-                             initial_preferences: bool = True) -> None:
+                             initial_preferences: bool = True,
+                             ui_language: str | None = None) -> None:
     """Record successful initial setup without discarding unknown preferences."""
     from output_locations import _read_settings
     path = target / 'Data/settings.json'
     if path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256:
         return  # An app opened during setup may already have saved user choices.
+    # Validate the original settings *before* _read_settings, which raises on
+    # malformed JSON. Never rewrite user-owned corrupt or future-format bytes.
+    try:
+        original = json.loads(path.read_text(encoding='utf-8-sig'))
+        if not isinstance(original, dict):
+            return
+    except (ValueError, UnicodeError, OSError, TypeError):
+        return
     values = _read_settings(path)
+    if ui_language is not None:
+        chosen_language = normalize_language(ui_language)
+        # Old settings without this field already imply Japanese. A routine
+        # upgrade with the same language must keep the original bytes intact.
+        if chosen_language != values.get('ui_language', 'ja'):
+            values['ui_language'] = chosen_language
     if minimal and initial_preferences:
         values.update(profile='faster-res', device=hardware, model_faster=model)
     # The welcome dialog requests the recommended environment and model.  Mark
@@ -240,6 +259,8 @@ def update_setup_preferences(target: Path, *, minimal: bool, hardware: str,
         values['onboarding_seen'] = True
     if recording_ready:
         values['capture_setup_complete'] = True
+    if values == original:
+        return  # Preserve exact bytes/formatting if no preferences changed.
     with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent,
             prefix='.setup-preferences-', suffix='.tmp', delete=False) as stream:
         staged = Path(stream.name)
@@ -285,6 +306,8 @@ def _write_new_settings(path: Path, payload: bytes) -> bool:
 class InstallerWindow:
     def __init__(self, root: tk.Tk, args, package_info=None):
         self.root, self.args = root, args
+        self.ui_language = normalize_language(getattr(args, 'ui_language', 'ja'))
+        set_language(self.ui_language)
         self.package_info = package_info
         self.messages = queue.Queue()
         self.cancel = threading.Event()
@@ -434,6 +457,7 @@ class InstallerWindow:
             cuda_messages.put(('cuda', availability))
         threading.Thread(target=check_cuda, daemon=True).start()
         install_wheel_routing(root._root())
+        translate_widgets(self.root)
         self.poll_job = root.after(100, self.poll)
         if args.update and self.mode.get() == 'upgrade' and 'disabled' not in self.action.state():
             self.auto_start_job = root.after_idle(self.begin)
@@ -568,7 +592,8 @@ class InstallerWindow:
             return
         choices = dict(recording=self.recording.get(),minimal=self.minimal.get(),hardware=self.hardware.get(),
                        register_program=self.register.get(),create_shortcut=self.shortcut.get(),
-                       output_location=selected_output, output_modified=self.output_modified, model=model)
+                       output_location=selected_output, output_modified=self.output_modified,
+                       model=model, ui_language=self.ui_language)
         self.operation_target = target
         self.cancel.clear()
         self.set_busy(True)
@@ -608,7 +633,8 @@ class InstallerWindow:
                 # Save the selected user-output location before spawning optional
                 # setup processes, which also need this location for diagnostics.
                 new_preferences = seed_preferences(target, minimal=False, hardware=choices['hardware'], recording_ready=False,
-                    output_location=choices['output_location'], model=choices['model'])
+                    output_location=choices['output_location'], model=choices['model'],
+                    ui_language=choices['ui_language'])
                 if choices['output_modified']:
                     set_output_root(choices['output_location'], app_root=target, config_path=target/'Data/settings.json')
                 preferences_path = target/'Data/settings.json'
@@ -645,10 +671,10 @@ class InstallerWindow:
                     text='本体はインストール済みです。追加環境の構築は完了していません。アプリ内の一括セットアップから再試行できます。'
                     self.messages.put(('log',str(exc)))
                 try:
-                    if preference_digest and setup_succeeded and (choices['minimal'] or choices['recording']):
+                    if preference_digest and setup_succeeded:
                         update_setup_preferences(target, minimal=choices['minimal'], hardware=choices['hardware'],
                             recording_ready=choices['recording'], model=choices['model'], expected_sha256=preference_digest,
-                            initial_preferences=new_preferences)
+                            initial_preferences=new_preferences, ui_language=choices['ui_language'])
                 except (OSError,RuntimeError,ValueError) as exc:
                     self.messages.put(('log','初期設定を保存できませんでした。既存の設定は保持しています: '+str(exc)))
                     text='本体の配置が完了しました。起動後に設定の保存先を確認してください。'
@@ -856,6 +882,59 @@ def _setup_parent_window_state(parent_pid: int) -> dict:
             'setup_parent_visible_window_count': sum(matching)}
 
 
+
+def preferred_installer_language(target: Path) -> str:
+    """Reuse an installed UI language, otherwise use the OS (or Japanese)."""
+    path = Path(target) / 'Data' / 'settings.json'
+    try:
+        if path.is_symlink() or path.parent.is_symlink() or path.stat().st_size > MAX_CONFIG_BYTES:
+            return system_language()
+        data = json.loads(path.read_text(encoding='utf-8-sig'))
+        if isinstance(data, dict) and data.get('ui_language') in ('ja', 'en'):
+            return data['ui_language']
+    except (OSError, ValueError, UnicodeError, TypeError):
+        pass
+    return system_language()
+
+
+def select_installer_language(root: tk.Tk, initial: str) -> str | None:
+    """First setup screen; closing it cancels setup without changing files."""
+    selected = [None]
+    root.withdraw()
+    window = tk.Toplevel(root)
+    window.title('Language / 言語')
+    window.geometry('490x270')
+    window.minsize(420, 230)
+    body = ttk.Frame(window, padding=26)
+    body.pack(fill='both', expand=True)
+    ttk.Label(body, text='Language / 言語',
+              font=('Segoe UI', 17, 'bold')).pack(anchor='w')
+    ttk.Label(body, text='Select the installer and app language. / インストーラーとアプリの言語を選択',
+              wraplength=420).pack(anchor='w', pady=(12, 8))
+    choice = tk.StringVar(window, 'English' if initial == 'en' else '日本語')
+    combo = ttk.Combobox(body, textvariable=choice, state='readonly',
+                         values=('日本語', 'English'), width=28)
+    combo.pack(anchor='w')
+    ttk.Label(body, text='Audio recognition language is independent. / 音声認識の言語とは別です。',
+              wraplength=420).pack(anchor='w', pady=(12, 0))
+    footer = ttk.Frame(body)
+    footer.pack(side='bottom', fill='x')
+    def close():
+        window.destroy()
+    def proceed():
+        selected[0] = LANGUAGES[choice.get()]
+        window.destroy()
+    ttk.Button(footer, text='Cancel / キャンセル', command=close).pack(side='right')
+    ttk.Button(footer, text='Continue / 次へ', command=proceed).pack(side='right', padx=(0, 9))
+    window.protocol('WM_DELETE_WINDOW', close)
+    window.grab_set()
+    window.focus_force()
+    root.wait_window(window)
+    if selected[0] is not None:
+        root.deiconify()
+    return selected[0]
+
+
 def main(argv=None) -> int:
     parser=argparse.ArgumentParser(description='文字起こし統合スタジオ セットアップ')
     parser.add_argument('--version',action='store_true')
@@ -938,6 +1017,11 @@ def main(argv=None) -> int:
         if args.wait_setup_pid is not None:
             wait_for_process(args.wait_setup_pid, target)
         root=tk.Tk()
+        selected = select_installer_language(root, preferred_installer_language(target))
+        if selected is None:
+            root.destroy()
+            return 0
+        args.ui_language = selected
         InstallerWindow(root,args)
         root.mainloop()
         return 0

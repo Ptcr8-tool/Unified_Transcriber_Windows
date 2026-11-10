@@ -13,6 +13,13 @@ from live_config import LiveOptions
 
 
 class CaptureOutputDefaults(unittest.TestCase):
+
+    def test_new_live_recordings_default_to_both_sources_without_overwriting_custom_choice(self):
+        self.assertEqual(LiveOptions().source, 'mix')
+        saved=Config(capture_preferences={'live': {'source': 'mic', 'mode': 'record'}})
+        self.assertEqual(saved_options(saved, 'live').source, 'mic')
+        self.assertEqual(saved_options(Config(), 'live'), None)
+
     def test_legacy_flat_recording_default_is_reset_but_custom_override_is_retained(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

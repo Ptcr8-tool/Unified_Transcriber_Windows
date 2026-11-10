@@ -34,7 +34,7 @@ def is_silent_pcm(path: Path) -> bool:
 
 @dataclass(frozen=True)
 class LiveOptions:
-    source: str = 'mic'
+    source: str = 'mix'
     mode: str = 'both'
     chunk_seconds: int = 20
     device_id: str = ''

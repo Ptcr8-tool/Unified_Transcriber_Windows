@@ -58,6 +58,7 @@ MENU_ACTION_HELP = {
     'cuda': 'GPUが認識されているか、利用できるかを確認します',
     'limits': '文字起こし中に使用するCPU・GPUの負荷を調整します',
     'shortcuts': '録音・録画の開始や停止に使うキーを変更します',
+    'ui_language': '画面の表示言語を切り替えます（音声認識の言語とは独立）',
     'background': 'Windows起動時の実行と、通知領域での待機を設定します',
     'hints': '固有名詞や専門用語など、認識の参考にする単語を登録します',
     'settings_export': '今の設定をファイルに保存し、バックアップや移行に使います',
@@ -499,6 +500,7 @@ class StudioView:
         self._action(operation, 'limits', 'CPU・GPU負荷制限…',
                      a.edit_runtime_limits, idle_only=False)
         self._action(operation,'shortcuts','録音・録画のショートカット…',a.edit_shortcuts,idle_only=False)
+        self._action(operation,'ui_language','表示言語…',a.edit_ui_language,idle_only=False,icon='sliders')
         self._action(operation,'background','自動起動・常駐の設定…',a.edit_background,idle_only=False,icon='clock')
         self._action(operation,'hints','認識用の単語辞書…',lambda: self._dialog('hints'),icon='text')
         self._action(operation,'settings_export','設定を書き出す…',a.export_preferences,idle_only=False)

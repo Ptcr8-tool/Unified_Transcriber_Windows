@@ -1,0 +1,40 @@
+name: Check audio-source defaults and split-channel capture
+
+on:
+  pull_request:
+    paths:
+      - _internal/live_config.py
+      - _internal/live_mix.py
+      - _internal/unified_gui.py
+      - _internal/tests/test_v27_audio.py
+      - _internal/tests/test_capture_output_defaults.py
+      - .github/workflows/audio-default-regression.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audio-defaults:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: '_internal;_internal/tests'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+      - name: Install hash-pinned test dependencies
+        shell: pwsh
+        run: |
+          python -m pip --isolated install --no-input --require-hashes --only-binary=:all: -r _internal/tools/requirements-tests-windows.lock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify mixed defaults, explicit single-source rejection and stop behavior
+        shell: pwsh
+        run: |
+          python -m unittest -v test_v27_audio test_capture_output_defaults test_top_stop
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

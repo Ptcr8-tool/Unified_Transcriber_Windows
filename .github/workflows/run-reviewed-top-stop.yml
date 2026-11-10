@@ -1,0 +1,68 @@
+name: Apply reviewed TOP stop source edits
+on:
+  push:
+    branches: [fix/two-stage-top-stop-20261110]
+    paths: [.github/workflows/run-reviewed-top-stop.yml]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    if: github.repository == 'Ptcr8-tool/Unified_Transcriber_Windows' && github.ref == 'refs/heads/fix/two-stage-top-stop-20261110'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Compile reviewed patch then apply atomically
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'RUN'
+          from pathlib import Path
+          import textwrap
+          source = Path('.github/workflows/prepare-two-stage-stop.yml').read_text(encoding='utf-8')
+          begin = source.index("          python3 - <<'PY'\n") + len("          python3 - <<'PY'\n")
+          end = source.rindex('          PY\n')
+          script = textwrap.dedent(source[begin:end])
+          start = script.index('methods = ')
+          finish = script.index("text = replace_once(text, '    def stop_all(self):',", start)
+          methods = '\n'.join([
+              '    def _arm_top_stop(self):',
+              '        """Normal stop first; guard accidental double-click escalation."""',
+              "        if not getattr(self, 'top_stop_armed', False):",
+              '            self.top_stop_armed = True',
+              '            self.top_stop_ready_at = time.monotonic() + 0.6',
+              "        refresh = getattr(getattr(self, 'ui', None), 'refresh_top_stop', None)",
+              '        if refresh is not None:',
+              '            refresh()',
+              '',
+              '    def stop_from_top(self):',
+              '        """TOP: normal finalization first, explicit all-stop second."""',
+              "        registry = getattr(self, 'processes', None)",
+              '        active = self.busy or bool(registry is not None and registry.active())',
+              "        if not active or getattr(self, 'closing', False):",
+              '            return',
+              "        if getattr(self, 'all_stop_requested', False):",
+              '            return',
+              "        if getattr(self, 'top_stop_armed', False):",
+              "            if time.monotonic() >= getattr(self, 'top_stop_ready_at', 0.0):",
+              '                self.stop_all()',
+              '            return',
+              '        if self.busy:',
+              '            self.stop()',
+              '        else:',
+              '            # An owned child may outlive its UI job.',
+              '            self._arm_top_stop()',
+              '            self.stop_event.set()',
+              '',
+              '',
+          ])
+          script = script[:start] + 'import textwrap\nmethods = ' + repr(methods) + '\n' + script[finish:]
+          bad = '    "            text=translate(label, getattr(app.config, \'ui_language\', \'ja\')),\n'
+          good = '    "            text=translate(label, getattr(app.config, \'ui_language\', \'ja\')),",\n'
+          assert script.count(bad) == 1
+          script = script.replace(bad, good, 1)
+          compile(script, '<reviewed-top-stop-patch>', 'exec')
+          exec(compile(script, '<reviewed-top-stop-patch>', 'exec'), {'__name__': '__main__'})
+          RUN

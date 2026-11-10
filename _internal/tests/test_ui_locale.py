@@ -34,6 +34,20 @@ class LocaleDetection(unittest.TestCase):
             with patch.object(ui_locale.locale, 'getlocale', side_effect=ValueError('unavailable')):
                 self.assertEqual(ui_locale.system_language(), 'ja')
 
+    def test_windows_locale_uses_native_ui_language_id(self):
+        from types import SimpleNamespace
+        kernel = SimpleNamespace(GetUserDefaultUILanguage=lambda: 0x0411)
+        with patch.object(ui_locale.sys, 'platform', 'win32'), \
+             patch.object(ui_locale.ctypes, 'windll',
+                          SimpleNamespace(kernel32=kernel), create=True):
+            self.assertEqual(ui_locale.system_language(), 'ja')
+            kernel.GetUserDefaultUILanguage = lambda: 0x0409
+            self.assertEqual(ui_locale.system_language(), 'en')
+            kernel.GetUserDefaultUILanguage = lambda: 0x040C
+            self.assertEqual(ui_locale.system_language(), 'en')
+            kernel.GetUserDefaultUILanguage = lambda: 0
+            self.assertEqual(ui_locale.system_language(), 'ja')
+
     def test_settings_keep_asr_unchanged_and_reject_invalid_ui_language(self):
         with tempfile.TemporaryDirectory() as folder:
             filename = Path(folder) / 'settings.json'
@@ -107,6 +121,29 @@ class LocaleDetection(unittest.TestCase):
 class WidgetTranslation(unittest.TestCase):
     def tearDown(self):
         ui_locale.set_language('ja')
+
+    def test_installer_first_screen_returns_selected_language(self):
+        try:
+            root = tk.Tk()
+        except tk.TclError:
+            self.skipTest('Tk desktop display unavailable')
+        try:
+            def select():
+                chooser = next(child for child in root.winfo_children()
+                               if isinstance(child, tk.Toplevel))
+                def all_descendants(widget):
+                    for child in widget.winfo_children():
+                        yield child
+                        yield from all_descendants(child)
+                button = next(w for w in all_descendants(chooser)
+                              if isinstance(w, ttk.Button) and w.cget('text') == 'Continue / 次へ')
+                button.invoke()
+            from tkinter import ttk
+            root.after(80, select)
+            self.assertEqual(installer_ui.select_installer_language(root, 'en'), 'en')
+            self.assertEqual(root.state(), 'normal')
+        finally:
+            root.destroy()
 
     def test_switch_is_reversible_and_does_not_change_textvariables(self):
         try:

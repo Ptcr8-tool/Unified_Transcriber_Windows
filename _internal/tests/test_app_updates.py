@@ -202,6 +202,66 @@ class TransportGuards(unittest.TestCase):
             updates._read_response(updates.RELEASE_API, 5, asset=False, opener=opener, expected_size=3)
 
 
+
+class SlowNetworkTimeouts(unittest.TestCase):
+    def test_installer_has_extended_but_bounded_transfer_timeout(self):
+        self.assertEqual(updates.REQUEST_TIMEOUT, 15)
+        self.assertGreaterEqual(updates.ASSET_REQUEST_TIMEOUT, 45)
+        self.assertEqual(updates.TRANSFER_TIMEOUT, 1800)
+        self.assertLessEqual(updates.READ_CHUNK_BYTES, 128 * 1024)
+
+    def test_asset_streams_smaller_chunks_with_progress(self):
+        data = b'MZ' + b'x' * (updates.READ_CHUNK_BYTES * 2 + 13)
+        sizes, progress = [], []
+
+        class Stream(Response):
+            def read(self, count=-1):
+                sizes.append(count)
+                return super().read(count)
+
+        transport = Mock()
+        url = release()['assets'][0]['browser_download_url']
+        transport.open.return_value = Stream(data, url)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / NAME
+            updates._read_response(url, updates.INSTALLER_LIMIT, asset=True,
+                opener=transport, destination=path, expected_size=len(data),
+                on_progress=lambda count, expected: progress.append((count, expected)))
+            self.assertEqual(path.read_bytes(), data)
+        self.assertEqual(transport.open.call_args.kwargs['timeout'], updates.ASSET_REQUEST_TIMEOUT)
+        self.assertLessEqual(max(sizes), updates.READ_CHUNK_BYTES)
+        self.assertEqual(progress[-1], (len(data), len(data)))
+
+    def test_metadata_retains_short_socket_timeout_and_overall_deadline(self):
+        transport = Mock()
+        transport.open.return_value = Response(b'{}', updates.RELEASE_API)
+        with patch.object(updates.time, 'monotonic',
+                          side_effect=[0, updates.METADATA_TRANSFER_TIMEOUT + 1]):
+            with self.assertRaisesRegex(updates.UpdateError, '時間内'):
+                updates._read_response(updates.RELEASE_API, updates.METADATA_LIMIT,
+                                       asset=False, opener=transport)
+        self.assertEqual(transport.open.call_args.kwargs['timeout'], updates.REQUEST_TIMEOUT)
+
+    def test_cancel_before_and_during_installer_discards_temporary_data(self):
+        info = updates.parse_release(release(), '2.0.0')
+        for middle in (False, True):
+            with self.subTest(middle=middle), tempfile.TemporaryDirectory() as folder:
+                cancelled = [not middle]
+                transport = Transport()
+
+                def progress(stage, done, total):
+                    if stage == 'installer' and done:
+                        cancelled[0] = True
+
+                with self.assertRaises(updates.UpdateCancelled):
+                    updates.download_verified(info, Path(folder), opener=transport,
+                        cancelled=lambda: cancelled[0], on_progress=progress,
+                        provenance_verifier=Mock())
+                self.assertEqual(list(Path(folder).iterdir()), [])
+                if not middle:
+                    self.assertEqual(transport.requests, [])
+
+
 class DownloadAndLaunch(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -283,6 +343,7 @@ class DownloadAndLaunch(unittest.TestCase):
             self.assertIn('refs/tags/v'+VERSION, command)
             self.assertIn('--deny-self-hosted-runners', command)
             self.assertIs(run.call_args.kwargs['shell'], False)
+            self.assertEqual(run.call_args.kwargs['timeout'], updates.VERIFY_TIMEOUT)
             self.assertFalse({'GH_TOKEN','HF_TOKEN','HTTPS_PROXY'} & run.call_args.kwargs['env'].keys())
 
     def test_old_or_missing_certificate_repository_id_is_rejected(self):

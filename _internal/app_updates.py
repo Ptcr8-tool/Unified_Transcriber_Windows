@@ -32,8 +32,12 @@ METADATA_LIMIT = 1024 * 1024
 CHECKSUM_LIMIT = 64 * 1024
 BUNDLE_LIMIT = 4 * 1024 * 1024
 INSTALLER_LIMIT = 1024 * 1024 * 1024
-REQUEST_TIMEOUT = 15
-TRANSFER_TIMEOUT = 600
+REQUEST_TIMEOUT = 15  # Metadata
+ASSET_REQUEST_TIMEOUT = 45  # CDN response / socket read timeout
+METADATA_TRANSFER_TIMEOUT = 120
+TRANSFER_TIMEOUT = 30 * 60  # Up to 30 minutes for large installers
+READ_CHUNK_BYTES = 128 * 1024  # Low-bandwidth networks need smaller reads
+VERIFY_TIMEOUT = 180
 _VERSION = re.compile(r'(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\Z')
 _SHA256 = re.compile(r'[0-9a-f]{64}\Z')
 _CDN_HOSTS = frozenset(('release-assets.githubusercontent.com', 'objects.githubusercontent.com'))
@@ -45,6 +49,10 @@ class UpdateError(RuntimeError):
 
 class UpdateUnavailable(UpdateError):
     """Public release metadata is unavailable (including private repositories)."""
+
+
+class UpdateCancelled(UpdateError):
+    """User requested cancellation; discard any partial installer."""
 
 
 class UpdateSecurityError(UpdateError):
@@ -183,8 +191,10 @@ def _opener(url: str, *, asset: bool):
 
 
 def _read_response(url: str, limit: int, *, asset: bool, opener=None,
-                   destination: Path | None = None, expected_size: int | None = None) -> bytes:
-    """Read bounded bytes with TLS verification; never use an ambient proxy/token."""
+                   destination: Path | None = None, expected_size: int | None = None,
+                   cancelled: Callable[[], bool] | None = None,
+                   on_progress: Callable[[int, int | None], None] | None = None) -> bytes:
+    """Read bounded bytes with TLS verification and cooperative cancellation."""
     _url_parts(url)
     request = Request(url, headers={
         'User-Agent': 'UnifiedTranscriber-Updater',
@@ -193,9 +203,13 @@ def _read_response(url: str, limit: int, *, asset: bool, opener=None,
         'X-GitHub-Api-Version': '2022-11-28',
     })
     transport = opener or _opener(url, asset=asset)
+    if cancelled is not None and cancelled():
+        raise UpdateCancelled('更新のダウンロードをキャンセルしました。')
     started = time.monotonic()
+    deadline = TRANSFER_TIMEOUT if asset and limit > BUNDLE_LIMIT else METADATA_TRANSFER_TIMEOUT
+    socket_timeout = ASSET_REQUEST_TIMEOUT if asset else REQUEST_TIMEOUT
     try:
-        with transport.open(request, timeout=REQUEST_TIMEOUT) as response:
+        with transport.open(request, timeout=socket_timeout) as response:
             status = getattr(response, 'status', 200)
             if status != 200:
                 raise UpdateUnavailable('更新情報を取得できませんでした。')
@@ -219,9 +233,12 @@ def _read_response(url: str, limit: int, *, asset: bool, opener=None,
             output = destination.open('xb') if destination else None
             try:
                 while True:
-                    if time.monotonic() - started > TRANSFER_TIMEOUT:
-                        raise UpdateError('更新ファイルの受信が時間内に完了しませんでした。')
-                    chunk = response.read(min(1024 * 1024, limit - total + 1))
+                    if cancelled is not None and cancelled():
+                        raise UpdateCancelled('更新のダウンロードをキャンセルしました。')
+                    if time.monotonic() - started > deadline:
+                        raise UpdateError('更新ファイルの受信が時間内に完了しませんでした。'
+                                          ' リリースページからの手動更新も可能です。')
+                    chunk = response.read(min(READ_CHUNK_BYTES, limit - total + 1))
                     if not chunk:
                         break
                     total += len(chunk)
@@ -231,6 +248,8 @@ def _read_response(url: str, limit: int, *, asset: bool, opener=None,
                         output.write(chunk)
                     else:
                         chunks.append(chunk)
+                    if on_progress is not None:
+                        on_progress(total, expected_size)
                 if expected_size is not None and total != expected_size:
                     raise UpdateSecurityError('更新ファイルの受信が途中で終了しました。')
                 if output:
@@ -385,7 +404,7 @@ def verify_github_provenance(installer: Path, bundle: Path, info: UpdateInfo) ->
         try:
             result = subprocess.run(command, shell=False, stdin=subprocess.DEVNULL,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    timeout=90, check=False, env=env, cwd=private_config,
+                                    timeout=VERIFY_TIMEOUT, check=False, env=env, cwd=private_config,
                                     creationflags=flags)
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise UpdateSecurityError('更新の署名検証を完了できませんでした。') from exc
@@ -419,7 +438,9 @@ def verify_github_provenance(installer: Path, bundle: Path, info: UpdateInfo) ->
 
 
 def download_verified(info: UpdateInfo, directory: Path, *, opener=None,
-                      provenance_verifier: Callable[[Path, Path, UpdateInfo], None] | None = None) -> VerifiedUpdate:
+                      provenance_verifier: Callable[[Path, Path, UpdateInfo], None] | None = None,
+                      cancelled: Callable[[], bool] | None = None,
+                      on_progress: Callable[[str, int, int | None], None] | None = None) -> VerifiedUpdate:
     """Return an installer only after hash AND cryptographic provenance checks."""
     # Revalidate the whole immutable object, including objects created by callers.
     parse_version(info.version)
@@ -442,24 +463,42 @@ def download_verified(info: UpdateInfo, directory: Path, *, opener=None,
     work = Path(tempfile.mkdtemp(prefix='verified-update-', dir=directory))
     installer = work / info.setup_name
     bundle = work / (info.setup_name+'.sigstore.json')
+    def check_cancelled():
+        if cancelled is not None and cancelled():
+            raise UpdateCancelled('更新のダウンロードをキャンセルしました。')
     try:
+        check_cancelled()
         checksums = _read_response(info.checksums_url, CHECKSUM_LIMIT, asset=True,
-                                   opener=opener, expected_size=info.checksums_size)
+                                   opener=opener, expected_size=info.checksums_size,
+                                   cancelled=cancelled)
         if (hashlib.sha256(checksums).hexdigest() != info.checksums_sha256 or
                 _expected_checksum(checksums, info.setup_name) != info.setup_sha256):
             raise UpdateSecurityError('更新のチェックサムが一致しません。')
+        check_cancelled()
+        if on_progress is not None:
+            on_progress('installer', 0, info.setup_size)
         _read_response(info.setup_url, INSTALLER_LIMIT, asset=True, opener=opener,
-                       destination=installer, expected_size=info.setup_size)
+                       destination=installer, expected_size=info.setup_size,
+                       cancelled=cancelled,
+                       on_progress=(lambda done, total: on_progress('installer', done, total))
+                           if on_progress is not None else None)
+        check_cancelled()
         if _sha256(installer) != info.setup_sha256:
             raise UpdateSecurityError('セットアップファイルが破損しているか、変更されています。')
         with installer.open('rb') as stream:
             if stream.read(2) != b'MZ':
                 raise UpdateSecurityError('Windowsセットアップ形式ではありません。')
         _read_response(info.bundle_url, BUNDLE_LIMIT, asset=True, opener=opener,
-                       destination=bundle, expected_size=info.bundle_size)
+                       destination=bundle, expected_size=info.bundle_size,
+                       cancelled=cancelled)
+        check_cancelled()
         if _sha256(bundle) != info.bundle_sha256:
             raise UpdateSecurityError('ビルド証明のチェックサムが一致しません。')
+        if on_progress is not None:
+            on_progress('verification', 0, None)
+        check_cancelled()
         (provenance_verifier or verify_github_provenance)(installer, bundle, info)
+        check_cancelled()
         # Detect accidental modification while the verifier was running.
         if _sha256(installer) != info.setup_sha256:
             raise UpdateSecurityError('検証中にセットアップファイルが変更されました。')

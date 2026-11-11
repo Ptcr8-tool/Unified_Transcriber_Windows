@@ -1,0 +1,40 @@
+name: Verify clean workspace on reopen
+
+on:
+  pull_request:
+    paths:
+      - '_internal/workspace_cleanup.py'
+      - '_internal/unified_gui.py'
+      - '_internal/tests/test_workspace_cleanup.py'
+      - '.github/workflows/workspace-cleanup-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workspace-windows:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+      PYTHONPATH: '_internal;_internal/tests'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+      - name: Compile and check source
+        shell: pwsh
+        run: |
+          python -m compileall -q _internal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Reopen, tray, recording, notifications and update regressions
+        shell: pwsh
+        run: |
+          python -m unittest -v test_workspace_cleanup test_background test_top_stop test_shortcut_feedback test_recorded_queue test_v27_gui test_app_updates test_update_ui
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

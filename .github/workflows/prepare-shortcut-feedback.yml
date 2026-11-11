@@ -116,15 +116,7 @@ jobs:
                       return False
                   return True
 
-          '''.replace('\n              ', '\n    ').replace('\n                  ', '\n        ').replace('\n                      ', '\n            ').replace('\n                          ', '\n                ') + s[end:]
-          # The inserted block was indented in this YAML/Python literal; normalize
-          # exactly the added segment using dedent rather than touching old code.
-          import textwrap
-          start = s.index('    def _start_async(self) -> bool:')
-          end = s.index('    def close(self):', start)
-          block = s[start:end]
-          # Ensure each method starts at class indentation; source parsing below
-          # catches any accidental indentation change before any commit is made.
+          ''' + s[end:]
           s = replace(s, "    def close(self):\n        hwnd, user, thread = self._hwnd, self._user, self._thread", "    def close(self):\n        with self._start_lock:\n            self._closed.set()\n            hwnd, user, thread = self._hwnd, self._user, self._thread\n        self._take_notice()", 'close guard')
           s = replace(s, "        finally:\n            self._hwnd = None\n            self._ready.set()", "        finally:\n            self._hwnd = None\n            self._user = None\n            pending = self._take_notice()\n            self._ready.set()\n            if pending and self.error and not self._closed.is_set():\n                self.emit('notification-error')", 'pump teardown')
           s = replace(s, "        def proc(hwnd, message, wp, lp):\n            if message == 0x8001:\n                if lp == 0x0202:self.emit('show')", "        def proc(hwnd, message, wp, lp):\n            if message == _WM_NOTIFY:\n                self._show_pending_notification(shell, NOTIFYICONDATA, hwnd)\n                return 0\n            if message == 0x8001:\n                if lp in (0x0202, 0x0405):self.emit('show')", 'native callback')

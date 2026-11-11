@@ -10,10 +10,18 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
+import time
 import uuid
 
 _RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
 _RUN_NAME = 'UnifiedTranscriber'
+_WM_NOTIFY = 0x8002
+_NOTICE_SECONDS = 8.0
+
+
+def notification_text(value: str, max_units: int) -> str:
+    """Fit a Windows WCHAR buffer without splitting a surrogate pair."""
+    return str(value).replace('\0', '').encode('utf-16-le', errors='replace')[:max_units * 2].decode('utf-16-le', errors='ignore')
 
 
 def startup_command(directory: Path) -> str:
@@ -69,23 +77,90 @@ class WindowsTray:
         self._hwnd = None
         self._user = None
         self.error = ''
+        self._closed = threading.Event()
+        self._start_lock = threading.Lock()
+        self._notice_lock = threading.Lock()
+        self._notice_pending = None
+
+    def _start_async(self) -> bool:
+        """Start the native pump once, but never wait on the GUI thread."""
+        with self._start_lock:
+            if self._closed.is_set():
+                return False
+            if sys.platform != 'win32':
+                self.error = '通知領域への格納は Windows で利用できます。'
+                return False
+            if self._thread and self._thread.is_alive():
+                return True
+            self.error = ''
+            self._ready.clear()
+            self._thread = threading.Thread(target=self._run, daemon=True, name='notification-area')
+            self._thread.start()
+            return True
 
     def start(self) -> bool:
-        if self._thread and self._thread.is_alive():
-            return bool(self._hwnd)
-        if sys.platform != 'win32':
-            self.error = '通知領域への格納は Windows で利用できます。'
+        if not self._start_async():
             return False
-        self._ready.clear()
-        self._thread = threading.Thread(target=self._run, daemon=True, name='notification-area')
-        self._thread.start()
         if not self._ready.wait(4):
             self.error = '通知領域アイコンの準備がタイムアウトしました。'
             return False
-        return bool(self._hwnd)
+        return bool(self._hwnd) and not self._closed.is_set()
+
+    def _take_notice(self):
+        with self._notice_lock:
+            notice, self._notice_pending = self._notice_pending, None
+            return notice
+
+    def notify(self, title: str, message: str) -> bool:
+        """Queue a silent native notice. True means queued, not displayed.
+
+        Windows notification settings may suppress a notice. Keep only
+        the latest request; never block stop/finalization on Explorer.
+        """
+        with self._notice_lock:
+            if self._closed.is_set():
+                return False
+            self._notice_pending = (time.monotonic() + _NOTICE_SECONDS,
+                notification_text(title, 63), notification_text(message, 255))
+        if not self._start_async():
+            self._take_notice()
+            return False
+        hwnd, user = self._hwnd, self._user
+        if hwnd and user:
+            if not user.PostMessageW(hwnd, _WM_NOTIFY, 0, 0):
+                self._take_notice()
+                self.error = 'Windows通知の送信を受け付けられませんでした。'
+                return False
+        return True
+
+    def _show_pending_notification(self, shell, factory, hwnd) -> bool:
+        """Run only on the native pump; never retain NIF_INFO on the icon.
+
+        Separate payload prevents a TaskbarCreated event from replaying
+        a stale stop acknowledgement. See Microsoft's NOTIFYICONDATAW.
+        """
+        import ctypes
+        notice = self._take_notice()
+        if not notice or self._closed.is_set() or time.monotonic() > notice[0]:
+            return False
+        data = factory()
+        data.cbSize = ctypes.sizeof(data)
+        data.hWnd, data.uID = hwnd, 1
+        data.uFlags = 0x10 | 0x40  # NIF_INFO | NIF_REALTIME
+        data.szInfoTitle, data.szInfo = notice[1:]
+        data.dwInfoFlags = 0x01 | 0x10 | 0x80  # INFO | NOSOUND | RESPECT_QUIET_TIME
+        if not shell.Shell_NotifyIconW(1, ctypes.byref(data)):  # NIM_MODIFY
+            self.error = 'Windows通知を表示できませんでした。停止処理は継続しています。'
+            if not self._closed.is_set():
+                self.emit('notification-error')
+            return False
+        return True
 
     def close(self):
-        hwnd, user, thread = self._hwnd, self._user, self._thread
+        with self._start_lock:
+            self._closed.set()
+            hwnd, user, thread = self._hwnd, self._user, self._thread
+        self._take_notice()
         self.emit = lambda _action: None
         if hwnd and user:
             user.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
@@ -99,7 +174,11 @@ class WindowsTray:
             self.error = str(exc)
         finally:
             self._hwnd = None
+            self._user = None
+            pending = self._take_notice()
             self._ready.set()
+            if pending and self.error and not self._closed.is_set():
+                self.emit('notification-error')
 
     def _windows_pump(self):
         import ctypes
@@ -175,8 +254,11 @@ class WindowsTray:
                 user.DestroyMenu(popup)
         @WNDPROC
         def proc(hwnd, message, wp, lp):
+            if message == _WM_NOTIFY:
+                self._show_pending_notification(shell, NOTIFYICONDATA, hwnd)
+                return 0
             if message == 0x8001:
-                if lp == 0x0202:self.emit('show')  # left button up
+                if lp in (0x0202, 0x0405):self.emit('show')  # left button up
                 elif lp == 0x0205:menu(hwnd)       # right button up
                 return 0
             if taskbar_created and message == taskbar_created:
@@ -198,8 +280,12 @@ class WindowsTray:
             data.hWnd = hwnd
             if not shell.Shell_NotifyIconW(0, ctypes.byref(data)):
                 raise OSError('Windows の通知領域にアイコンを登録できませんでした。')
-            self._user, self._hwnd = user, hwnd
-            self._ready.set()
+            with self._start_lock:
+                if self._closed.is_set():
+                    return
+                self._user, self._hwnd = user, hwnd
+                self._ready.set()
+            user.PostMessageW(hwnd, _WM_NOTIFY, 0, 0)
             msg = w.MSG()
             while user.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
                 user.TranslateMessage(ctypes.byref(msg)); user.DispatchMessageW(ctypes.byref(msg))

@@ -2401,7 +2401,9 @@ class UnifiedApp:
         return load_settings_file(self,source)
 
     def _handle_shortcut(self,action):
-        if action=='stop':self.stop()
+        if action=='stop':
+            from shortcut_feedback import stop_with_feedback
+            stop_with_feedback(self)
         elif self.busy:
             self.restore_from_tray()
             self.status.set('別の処理を実行中です。終了後に録音を開始してください。')
@@ -2459,6 +2461,8 @@ class UnifiedApp:
         elif action == 'exit':
             self.restore_from_tray()
             self.request_exit()
+        elif action == 'notification-error':
+            self.log('[通知] ' + self.tray.error + '\n')
         elif action in ('live','gamebar','stop'):
             self._handle_shortcut(action)
 

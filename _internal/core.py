@@ -19,7 +19,7 @@ from pathlib import Path, PureWindowsPath
 # Application code and environments are stored inside the installation folder.
 BASE = Path(__file__).resolve().parent.parent
 CODE_DIR = Path(__file__).resolve().parent
-APP_VERSION = '1.0.3'
+APP_VERSION = '1.0.3-b'
 
 from portable_runtime import (MAX_CONFIG_BYTES, configure_portable_environment,
                               is_portable)

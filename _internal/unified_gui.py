@@ -53,6 +53,9 @@ from live_config import (LiveOptions, collision_safe_path, unique_media_path,
                          RECORDING_CHANNELS, recording_channel_label, is_silent_pcm)
 from capture_preferences import saved_options, serialize_options, match_window, recording_folder_preference
 from app_hotkeys import WindowsHotkeys
+from workspace_cleanup import (begin_work as begin_workspace_work,
+    reset_preview as reset_workspace_preview, observe_event as observe_workspace_event,
+    clear_after_reopen as clear_closed_workspace)
 from ui_locale import get_language, set_language, translate_widgets
 from live_transcript import append_provisional, shifted_lines
 from transcript_tools import (convert_transcript, export_transcript_csv, merge_transcript_csv,
@@ -2439,6 +2442,7 @@ class UnifiedApp:
 
     def restore_from_tray(self):
         was_hidden = self.in_tray or self.root.state() in ('iconic','withdrawn')
+        if was_hidden:clear_closed_workspace(self)
         self.in_tray=False
         if was_hidden:self.root.deiconify()
         self.root.lift()
@@ -3072,6 +3076,7 @@ class UnifiedApp:
         self.status.set('認識プレビューをコピーしました。')
 
     def _reset_recognition_preview(self):
+        reset_workspace_preview(self)
         self.recognized_box.configure(state='normal')
         self.recognized_box.delete('1.0','end')
         self.recognized_box.configure(state='disabled')
@@ -3488,6 +3493,7 @@ class UnifiedApp:
             except OSError:pass
 
     def _begin_work(self):
+        begin_workspace_work(self)
         self.stop_event.clear()
         self.all_stop_requested=False
         self.all_stop_waiting=False
@@ -4632,6 +4638,7 @@ class UnifiedApp:
         try:
             for _ in range(250):
                 item=self.events.get_nowait()
+                observe_workspace_event(self,item)
                 if item[0]=='errorlog':self.diagnostics.error(item[1])
                 elif item[0]=='log':self.log(item[1])
                 elif item[0]=='status':self.status.set(item[1])
@@ -4755,6 +4762,7 @@ class UnifiedApp:
 
     def close(self):
         if self.config.tray_close and self.hide_to_tray():
+            self._clear_completed_after_close=True
             return
         if self.config.tray_close:
             return  # An unavailable notification area must not silently exit.

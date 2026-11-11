@@ -132,10 +132,10 @@ def clear_after_reopen(app):
     preview_key = state['preview_key']
     clear_preview = bool(state['preview_ok'] and
         (preview_key in removed or preview_key not in app.job_sources))
-    # Also support successfully completed preexisting in-memory rows whose
-    # preview did not produce a transcript-saved event (e.g. external engines).
-    if rows and len(removed) == len(rows) and not state['warning'] and not state['protected']:
-        clear_preview = True
+    # A displayed snippet is not proof of a committed transcription.
+    # Keep unknown/unsaved previews even when older queue rows succeeded.
+    if pending_edits:
+        clear_preview = False
     for key in removed:
         app.tree.delete(key)
         app.job_sources.pop(key, None)

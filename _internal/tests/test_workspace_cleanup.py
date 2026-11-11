@@ -2,7 +2,6 @@
 from dataclasses import replace
 from pathlib import Path
 import sys
-import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
@@ -39,9 +38,22 @@ class WorkspaceCleanupTests(fixtures.StudioGUIFixture):
         self.app.job_outputs[key] = [output]
         return key, source, output
 
+    def show_preview(self, text):
+        # Real engine updates are deliberately ignored while idle. Reproduce
+        # the actual in-flight display before testing a later close boundary.
+        previous = self.app.busy
+        self.app.busy = True
+        try:
+            update = EngineUpdate('文字起こし', snippet=text)
+            cleanup.observe_event(self.app, ('engine-progress', update))
+            self.app._show_progress(update)
+        finally:
+            self.app.busy = previous
+        self.assertIn(text, self.app.recognized_box.get('1.0', 'end-1c'))
+
     def preview(self, key, output, status='完了'):
         self.app._reset_recognition_preview()
-        self.app._show_progress(EngineUpdate('文字起こし', snippet='Visible transcription'))
+        self.show_preview('Visible transcription')
         cleanup.observe_event(self.app, ('transcript-saved', key, [str(output)], status))
 
     def reopen(self):
@@ -91,7 +103,7 @@ class WorkspaceCleanupTests(fixtures.StudioGUIFixture):
         self.preview(key, output)
         self.app.restore_from_tray()
         self.assertTrue(self.app.tree.exists(key))
-        self.app.hide_to_tray()  # ordinary minimize/background path, not X
+        self.app.hide_to_tray()
         self.app.restore_from_tray()
         self.assertTrue(self.app.tree.exists(key))
         self.assertIn('Visible', self.app.recognized_box.get('1.0', 'end-1c'))
@@ -125,7 +137,7 @@ class WorkspaceCleanupTests(fixtures.StudioGUIFixture):
         self.preview(key, output)
         self.app.close()
         self.app.events.put(('job', key, '失敗'))
-        self.app.restore_from_tray()  # do not consume pending events here
+        self.app.restore_from_tray()
         self.assertTrue(self.app.tree.exists(key))
         self.app.events.get_nowait()
         self.app.close()
@@ -152,9 +164,27 @@ class WorkspaceCleanupTests(fixtures.StudioGUIFixture):
 
     def test_uncommitted_or_failed_preview_is_not_discarded(self):
         self.app._reset_recognition_preview()
-        self.app._show_progress(EngineUpdate('認識中', snippet='Uncommitted text'))
+        self.show_preview('Uncommitted text')
         self.reopen()
         self.assertIn('Uncommitted', self.app.recognized_box.get('1.0', 'end-1c'))
+
+    def test_older_successful_rows_never_certify_a_new_unsaved_preview(self):
+        key, _, output = self.row()
+        self.preview(key, output)
+        self.app._reset_recognition_preview()
+        self.show_preview('Uncommitted newer text')
+        self.reopen()
+        self.assertFalse(self.app.tree.exists(key))
+        self.assertIn('Uncommitted newer', self.app.recognized_box.get('1.0', 'end-1c'))
+
+    def test_successful_latest_preview_clears_without_dropping_previous_failed_rows(self):
+        failed, _, _ = self.row('失敗')
+        good, _, output = self.row()
+        self.preview(good, output)
+        self.reopen()
+        self.assertTrue(self.app.tree.exists(failed))
+        self.assertFalse(self.app.tree.exists(good))
+        self.assertEqual(self.app.recognized_box.get('1.0', 'end-1c'), '')
 
     def test_conversion_failure_after_asr_success_protects_recording_and_preview(self):
         key, _, output = self.row()

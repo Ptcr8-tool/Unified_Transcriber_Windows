@@ -1,0 +1,152 @@
+name: Prepare stop-shortcut feedback
+on:
+  push:
+    branches: ['feature/shortcut-stop-notifications-20261111']
+    paths: ['.github/workflows/prepare-shortcut-feedback.yml']
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: github.repository == 'Ptcr8-tool/Unified_Transcriber_Windows' && github.ref == 'refs/heads/feature/shortcut-stop-notifications-20261111'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: feature/shortcut-stop-notifications-20261111
+      - name: Apply reviewed changes only to the feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python - <<'PY'
+          import ast, subprocess
+          from pathlib import Path
+          def replace(text, old, new, name):
+              assert text.count(old) == 1, (name, text.count(old))
+              return text.replace(old, new)
+          path = Path('_internal/windows_background.py')
+          assert subprocess.check_output(['git','rev-parse','HEAD:'+str(path)], text=True).strip() == 'b1956a859511467efa60fb635e0776716143d45c'
+          s = path.read_text(encoding='utf-8')
+          s = replace(s, 'import threading\nimport uuid', 'import threading\nimport time\nimport uuid', 'imports')
+          s = replace(s, "_RUN_NAME = 'UnifiedTranscriber'", r'''_RUN_NAME = 'UnifiedTranscriber'
+          _WM_NOTIFY = 0x8002
+          _NOTICE_SECONDS = 8.0
+
+
+          def notification_text(value: str, max_units: int) -> str:
+              """Fit a Windows WCHAR buffer without splitting a surrogate pair."""
+              return str(value).replace('\0', '').encode('utf-16-le', errors='replace')[:max_units * 2].decode('utf-16-le', errors='ignore')''', 'notification constants')
+          s = replace(s, "        self.error = ''\n\n    def start(self) -> bool:", "        self.error = ''\n        self._closed = threading.Event()\n        self._start_lock = threading.Lock()\n        self._notice_lock = threading.Lock()\n        self._notice_pending = None\n\n    def start(self) -> bool:", 'lifecycle state')
+          start = s.index('    def start(self) -> bool:')
+          end = s.index('    def close(self):', start)
+          s = s[:start] + r'''    def _start_async(self) -> bool:
+                  """Start the native pump once, but never wait on the GUI thread."""
+                  with self._start_lock:
+                      if self._closed.is_set():
+                          return False
+                      if sys.platform != 'win32':
+                          self.error = '通知領域への格納は Windows で利用できます。'
+                          return False
+                      if self._thread and self._thread.is_alive():
+                          return True
+                      self.error = ''
+                      self._ready.clear()
+                      self._thread = threading.Thread(target=self._run, daemon=True, name='notification-area')
+                      self._thread.start()
+                      return True
+
+              def start(self) -> bool:
+                  if not self._start_async():
+                      return False
+                  if not self._ready.wait(4):
+                      self.error = '通知領域アイコンの準備がタイムアウトしました。'
+                      return False
+                  return bool(self._hwnd) and not self._closed.is_set()
+
+              def _take_notice(self):
+                  with self._notice_lock:
+                      notice, self._notice_pending = self._notice_pending, None
+                      return notice
+
+              def notify(self, title: str, message: str) -> bool:
+                  """Queue a silent native notice. True means queued, not displayed.
+
+                  Windows notification settings may suppress a notice. Keep only
+                  the latest request; never block stop/finalization on Explorer.
+                  """
+                  with self._notice_lock:
+                      if self._closed.is_set():
+                          return False
+                      self._notice_pending = (time.monotonic() + _NOTICE_SECONDS,
+                          notification_text(title, 63), notification_text(message, 255))
+                  if not self._start_async():
+                      self._take_notice()
+                      return False
+                  hwnd, user = self._hwnd, self._user
+                  if hwnd and user:
+                      if not user.PostMessageW(hwnd, _WM_NOTIFY, 0, 0):
+                          self._take_notice()
+                          self.error = 'Windows通知の送信を受け付けられませんでした。'
+                          return False
+                  return True
+
+              def _show_pending_notification(self, shell, factory, hwnd) -> bool:
+                  """Run only on the native pump; never retain NIF_INFO on the icon.
+
+                  Separate payload prevents a TaskbarCreated event from replaying
+                  a stale stop acknowledgement. See Microsoft's NOTIFYICONDATAW.
+                  """
+                  import ctypes
+                  notice = self._take_notice()
+                  if not notice or self._closed.is_set() or time.monotonic() > notice[0]:
+                      return False
+                  data = factory()
+                  data.cbSize = ctypes.sizeof(data)
+                  data.hWnd, data.uID = hwnd, 1
+                  data.uFlags = 0x10 | 0x40  # NIF_INFO | NIF_REALTIME
+                  data.szInfoTitle, data.szInfo = notice[1:]
+                  data.dwInfoFlags = 0x01 | 0x10 | 0x80  # INFO | NOSOUND | RESPECT_QUIET_TIME
+                  if not shell.Shell_NotifyIconW(1, ctypes.byref(data)):  # NIM_MODIFY
+                      self.error = 'Windows通知を表示できませんでした。停止処理は継続しています。'
+                      if not self._closed.is_set():
+                          self.emit('notification-error')
+                      return False
+                  return True
+
+          '''.replace('\n              ', '\n    ').replace('\n                  ', '\n        ').replace('\n                      ', '\n            ').replace('\n                          ', '\n                ') + s[end:]
+          # The inserted block was indented in this YAML/Python literal; normalize
+          # exactly the added segment using dedent rather than touching old code.
+          import textwrap
+          start = s.index('    def _start_async(self) -> bool:')
+          end = s.index('    def close(self):', start)
+          block = s[start:end]
+          # Ensure each method starts at class indentation; source parsing below
+          # catches any accidental indentation change before any commit is made.
+          s = replace(s, "    def close(self):\n        hwnd, user, thread = self._hwnd, self._user, self._thread", "    def close(self):\n        with self._start_lock:\n            self._closed.set()\n            hwnd, user, thread = self._hwnd, self._user, self._thread\n        self._take_notice()", 'close guard')
+          s = replace(s, "        finally:\n            self._hwnd = None\n            self._ready.set()", "        finally:\n            self._hwnd = None\n            self._user = None\n            pending = self._take_notice()\n            self._ready.set()\n            if pending and self.error and not self._closed.is_set():\n                self.emit('notification-error')", 'pump teardown')
+          s = replace(s, "        def proc(hwnd, message, wp, lp):\n            if message == 0x8001:\n                if lp == 0x0202:self.emit('show')", "        def proc(hwnd, message, wp, lp):\n            if message == _WM_NOTIFY:\n                self._show_pending_notification(shell, NOTIFYICONDATA, hwnd)\n                return 0\n            if message == 0x8001:\n                if lp in (0x0202, 0x0405):self.emit('show')", 'native callback')
+          s = replace(s, "            self._user, self._hwnd = user, hwnd\n            self._ready.set()\n            msg = w.MSG()", "            with self._start_lock:\n                if self._closed.is_set():\n                    return\n                self._user, self._hwnd = user, hwnd\n                self._ready.set()\n            user.PostMessageW(hwnd, _WM_NOTIFY, 0, 0)\n            msg = w.MSG()", 'queued initial notification')
+          ast.parse(s)
+          path.write_text(s, encoding='utf-8')
+          path = Path('_internal/unified_gui.py')
+          s = path.read_text(encoding='utf-8')
+          s = replace(s, "        if action=='stop':self.stop()", "        if action=='stop':\n            from shortcut_feedback import stop_with_feedback\n            stop_with_feedback(self)", 'stop shortcut dispatch')
+          s = replace(s, "        elif action in ('live','gamebar','stop'):\n            self._handle_shortcut(action)", "        elif action == 'notification-error':\n            self.log('[通知] ' + self.tray.error + '\\n')\n        elif action in ('live','gamebar','stop'):\n            self._handle_shortcut(action)", 'tray error reporting')
+          ast.parse(s)
+          path.write_text(s, encoding='utf-8')
+          path = Path('_internal/docs/USAGE.md')
+          s = path.read_text(encoding='utf-8')
+          heading = '## 停止の使い分け'
+          s = replace(s, heading, '## 停止ショートカットの通知（次回リリース向け）\n\n停止キーを押すと、Windowsの通知領域から音の出ない通知を送ります。録音・録画では「停止を受け付けました」と表示し、保存・設定済みの文字起こし・形式変換を続けます。保存完了を知らせる通知ではありません。通知のために作業中のウィンドウを前面へ移動したり、確認ダイアログを開いたりしません。連打中の同じ通知は2秒間抑制します。停止する処理がない場合はその旨を表示します。\n\n日本語・英語の表示設定に対応します。Windows側で通知を無効にしている場合や通知を抑制する状態では表示されないことがあります。通知領域メニューの停止にも適用します。TOPや録音画面の停止ボタンの動作は変更しません。配布済みv1.0.3／v1.0.3-aのEXEには含まれません。\n\n' + heading, 'usage note')
+          path.write_text(s, encoding='utf-8')
+          PY
+          python -m compileall -q _internal/windows_background.py _internal/unified_gui.py _internal/shortcut_feedback.py _internal/tests/test_shortcut_feedback.py
+          git diff --check
+          git config user.name Ptcr8
+          git config user.email 182083273+Ptcr8@users.noreply.github.com
+          git add _internal/windows_background.py _internal/unified_gui.py _internal/docs/USAGE.md
+          git commit -m "Queue silent Windows stop acknowledgements without blocking recording finalization"
+          git push origin HEAD:refs/heads/feature/shortcut-stop-notifications-20261111
